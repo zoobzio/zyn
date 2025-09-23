@@ -1,0 +1,143 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+  issues: write
+
+jobs:
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Validate tag format
+      run: |
+        if ! [[ "${{ github.ref_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+)?$ ]]; then
+          echo "Invalid tag format. Expected: vX.Y.Z or vX.Y.Z-suffix"
+          exit 1
+        fi
+        
+    - name: Check for breaking changes
+      run: |
+        echo "Checking commit messages for breaking changes..."
+        git log --pretty=format:"%s" $(git describe --tags --abbrev=0 HEAD^)..HEAD | grep -E "^(BREAKING CHANGE|.*!:)" || true
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: "1.23"
+        
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-1.23-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-1.23-
+          
+    - name: Download dependencies
+      run: go mod download
+      
+    - name: Run tests
+      run: go test -v -race -timeout=10m ./...
+      
+    - name: Run goreleaser
+      uses: goreleaser/goreleaser-action@v6
+      with:
+        version: latest
+        args: release --clean
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Upload release artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-artifacts
+        path: dist/
+        retention-days: 30
+
+  verify:
+    name: Verify Release
+    runs-on: ubuntu-latest
+    needs: release
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: "1.23"
+        
+    - name: Verify module installation
+      run: |
+        # Create temporary module
+        cd /tmp
+        go mod init test
+        go get github.com/zoobzio/zyn@${{ github.ref_name }}
+        go list -m github.com/zoobzio/zyn
+        
+    - name: Create release verification issue
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const issue = await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: `Release ${{ github.ref_name }} - Post-Release Verification`,
+            body: `## Release ${{ github.ref_name }} Published
+            
+            ### Automated Checks ✅
+            - Module installation verified
+            - Tests passed
+            - Release artifacts created
+            
+            ### Manual Verification Checklist
+            - [ ] Verify release notes accuracy
+            - [ ] Test installation in clean environment
+            - [ ] Validate documentation updates
+            - [ ] Check provider compatibility
+            - [ ] Verify example code works
+            - [ ] Update dependent projects if needed
+            
+            ### Release Links
+            - [Release Page](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})
+            - [Module Page](https://pkg.go.dev/github.com/${{ github.repository }}@${{ github.ref_name }})
+            
+            cc @${{ github.actor }}`,
+            labels: ['release', 'verification']
+          });
+          console.log(`Created issue #${issue.data.number}`);
+
+  notify:
+    name: Release Notification
+    runs-on: ubuntu-latest
+    needs: [release, verify]
+    if: always()
+    steps:
+    - name: Send notification
+      run: |
+        if [[ "${{ needs.release.result }}" == "success" ]]; then
+          echo "✅ Release ${{ github.ref_name }} completed successfully"
+        else
+          echo "❌ Release ${{ github.ref_name }} failed"
+          exit 1
+        fi

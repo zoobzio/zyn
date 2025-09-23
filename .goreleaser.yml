@@ -1,0 +1,81 @@
+project_name: zyn
+
+before:
+  hooks:
+    - go mod tidy
+    - go test -v ./...
+
+builds:
+  - skip: true
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+      - Merge pull request
+      - Merge remote-tracking branch
+      - Merge branch
+  groups:
+    - title: '✨ Features'
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: '🐛 Bug Fixes'
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: '⚡ Performance'
+      regexp: "^.*perf[(\\w)]*:+.*$"
+      order: 2
+    - title: '♻️ Refactoring'
+      regexp: "^.*refactor[(\\w)]*:+.*$"
+      order: 3
+    - title: '🔧 Other'
+      order: 999
+
+release:
+  github:
+    owner: zoobzio
+    name: zyn
+  name_template: "v{{.Version}}"
+  header: |
+    ## zyn v{{.Version}}
+    
+    Type-safe LLM orchestration framework with composable reliability patterns.
+    
+    ### Installation
+    
+    ```bash
+    go get github.com/zoobzio/zyn@v{{.Version}}
+    ```
+  footer: |
+    ---
+    
+    **Full Changelog**: https://github.com/zoobzio/zyn/compare/{{.PreviousTag}}...{{.Tag}}
+    
+    For questions and feedback, please open an issue: https://github.com/zoobzio/zyn/issues
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+archives:
+  - format: binary
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+git:
+  ignore_tags:
+    - '^v0\.'
+
+milestones:
+  - close: true
+    fail_on_error: false
+    name_template: "v{{.Version}}"
+
+announce:
+  skip: true
