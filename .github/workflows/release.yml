@@ -88,9 +88,10 @@ jobs:
         
     - name: Verify module installation
       run: |
-        # Create temporary module
-        cd /tmp
-        go mod init test
+        # Create temporary directory and module
+        mkdir -p ${{ runner.temp }}/test-module
+        cd ${{ runner.temp }}/test-module
+        go mod init example.com/test
         go get github.com/zoobzio/zyn@${{ github.ref_name }}
         go list -m github.com/zoobzio/zyn
         
