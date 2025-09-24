@@ -99,7 +99,7 @@ clean:
 # Install development tools
 install-tools:
 	@echo "Installing development tools..."
-	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0
+	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
 # Quick check - run tests and lint
 check: test lint
