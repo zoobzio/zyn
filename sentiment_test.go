@@ -184,7 +184,7 @@ func TestSentimentNormalization(t *testing.T) {
 
 func TestSentimentPromptStructure(t *testing.T) {
 	var capturedPrompt string
-	provider := NewMockProviderWithCallback(func(prompt string, temp float32) (string, error) {
+	provider := NewMockProviderWithCallback(func(prompt string, _ float32) (string, error) {
 		capturedPrompt = prompt
 		return `{
 			"overall": "neutral",
@@ -253,7 +253,7 @@ func TestSentimentWithContext(t *testing.T) {
 	if details.Overall != "positive" {
 		t.Errorf("Expected 'positive' (sarcasm with context), got '%s'", details.Overall)
 	}
-	
+
 	hasHumorOrSarcasm := false
 	for _, emotion := range details.Emotions {
 		if emotion == "sarcasm" || emotion == "humor" {

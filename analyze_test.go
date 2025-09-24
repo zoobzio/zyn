@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// Test structs for analysis
+// Test structs for analysis.
 type EmailData struct {
 	From    string   `json:"from"`
 	To      []string `json:"to"`
@@ -24,11 +24,11 @@ type CodeMetrics struct {
 }
 
 type ServerConfig struct {
-	Port          int               `json:"port"`
-	MaxConns      int               `json:"max_connections"`
-	Timeout       string            `json:"timeout"`
-	AllowedHosts  []string          `json:"allowed_hosts"`
-	Features      map[string]bool   `json:"features"`
+	Port         int             `json:"port"`
+	MaxConns     int             `json:"max_connections"`
+	Timeout      string          `json:"timeout"`
+	AllowedHosts []string        `json:"allowed_hosts"`
+	Features     map[string]bool `json:"features"`
 }
 
 func TestAnalyzeEmail(t *testing.T) {
@@ -60,7 +60,7 @@ func TestAnalyzeEmail(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	
+
 	// Test simple Fire
 	analysis, err := analyzer.Fire(ctx, email)
 	if err != nil {
@@ -251,7 +251,7 @@ func TestAnalyzeWithContext(t *testing.T) {
 
 func TestAnalyzePromptStructure(t *testing.T) {
 	var capturedPrompt string
-	provider := NewMockProviderWithCallback(func(prompt string, temp float32) (string, error) {
+	provider := NewMockProviderWithCallback(func(prompt string, _ float32) (string, error) {
 		capturedPrompt = prompt
 		return `{"analysis": "test", "confidence": 1.0, "findings": [], "reasoning": ["test"]}`, nil
 	})

@@ -1,6 +1,7 @@
 package bedrock
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,7 @@ import (
 )
 
 func TestProviderCallClaude(t *testing.T) {
+	ctx := context.Background()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify headers
 		if r.Header.Get("X-Amz-Date") == "" {
@@ -39,10 +41,10 @@ func TestProviderCallClaude(t *testing.T) {
 	defer server.Close()
 
 	provider := &Provider{
-		region:    "us-east-1",
-		accessKey: "test-access",
-		secretKey: "test-secret",
-		model:     "anthropic.claude-v2",
+		region:     "us-east-1",
+		accessKey:  "test-access",
+		secretKey:  "test-secret",
+		model:      "anthropic.claude-v2",
 		httpClient: http.DefaultClient,
 	}
 
@@ -53,7 +55,7 @@ func TestProviderCallClaude(t *testing.T) {
 		},
 	}
 
-	response, err := provider.Call("test prompt", 0.7)
+	response, err := provider.Call(ctx, "test prompt", 0.7)
 	if err != nil {
 		t.Fatalf("Call failed: %v", err)
 	}
@@ -64,7 +66,8 @@ func TestProviderCallClaude(t *testing.T) {
 }
 
 func TestProviderCallTitan(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// Send Titan response
 		resp := titanResponse{
 			Results: []struct {
@@ -91,7 +94,7 @@ func TestProviderCallTitan(t *testing.T) {
 		},
 	}
 
-	response, err := provider.Call("test prompt", 0.7)
+	response, err := provider.Call(ctx, "test prompt", 0.7)
 	if err != nil {
 		t.Fatalf("Call failed: %v", err)
 	}
@@ -126,7 +129,8 @@ func TestProviderErrorHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := context.Background()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(tt.statusCode)
 				w.Write([]byte(tt.responseBody))
 			}))
@@ -144,7 +148,7 @@ func TestProviderErrorHandling(t *testing.T) {
 				},
 			}
 
-			_, err := provider.Call("test", 0.7)
+			_, err := provider.Call(ctx, "test", 0.7)
 			if err == nil {
 				t.Fatal("Expected error")
 			}
@@ -155,7 +159,7 @@ func TestProviderErrorHandling(t *testing.T) {
 	}
 }
 
-// testTransport redirects requests to test server
+// testTransport redirects requests to test server.
 type testTransport struct {
 	server *httptest.Server
 }

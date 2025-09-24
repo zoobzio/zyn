@@ -1,6 +1,7 @@
 package google
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,7 @@ import (
 )
 
 func TestProviderCall(t *testing.T) {
+	ctx := context.Background()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify URL contains API key
 		if !strings.Contains(r.URL.String(), "key=test-key") {
@@ -39,7 +41,7 @@ func TestProviderCall(t *testing.T) {
 		BaseURL: server.URL,
 	})
 
-	response, err := provider.Call("test prompt", 0.7)
+	response, err := provider.Call(ctx, "test prompt", 0.7)
 	if err != nil {
 		t.Fatalf("Call failed: %v", err)
 	}
@@ -84,7 +86,8 @@ func TestProviderErrorHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := context.Background()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(tt.statusCode)
 				w.Write([]byte(tt.responseBody))
 			}))
@@ -95,7 +98,7 @@ func TestProviderErrorHandling(t *testing.T) {
 				BaseURL: server.URL,
 			})
 
-			_, err := provider.Call("test", 0.7)
+			_, err := provider.Call(ctx, "test", 0.7)
 			if err == nil {
 				t.Fatal("Expected error")
 			}

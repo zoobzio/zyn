@@ -8,11 +8,11 @@ import (
 
 func TestPromptConsistency(t *testing.T) {
 	var capturedPrompts []string
-	
+
 	// Capture prompts from each synapse
-	provider := NewMockProviderWithCallback(func(prompt string, temp float32) (string, error) {
+	provider := NewMockProviderWithCallback(func(prompt string, _ float32) (string, error) {
 		capturedPrompts = append(capturedPrompts, prompt)
-		
+
 		// Return appropriate response based on prompt content
 		if strings.Contains(prompt, "Return JSON:") {
 			if strings.Contains(prompt, "decision") {
@@ -36,25 +36,25 @@ func TestPromptConsistency(t *testing.T) {
 		}
 		return "test", nil
 	})
-	
+
 	ctx := context.Background()
-	
+
 	// Test Binary
 	binary := Binary("Is this valid?", provider)
 	_, _ = binary.Fire(ctx, "test input")
-	
-	// Test Classification  
+
+	// Test Classification
 	classifier := Classification("Classify this", []string{"cat1", "cat2"}, provider)
 	_, _ = classifier.Fire(ctx, "test input")
-	
+
 	// Test Ranking
 	ranker := Ranking("importance", provider)
 	_, _ = ranker.Fire(ctx, []string{"item1", "item2"})
-	
+
 	// Test Sentiment
 	sentiment := Sentiment("tone", provider)
 	_, _ = sentiment.Fire(ctx, "test input")
-	
+
 	// Test Extraction
 	type TestStruct struct {
 		Name  string `json:"name"`
@@ -63,41 +63,41 @@ func TestPromptConsistency(t *testing.T) {
 	}
 	extractor := Extract[TestStruct]("contact info", provider)
 	_, _ = extractor.Fire(ctx, "test input")
-	
+
 	// Test Transform
 	transformer := Transform("simplify text", provider)
 	_, _ = transformer.Fire(ctx, "test input")
-	
+
 	// Verify all prompts have consistent structure
 	if len(capturedPrompts) != 6 {
 		t.Fatalf("Expected 6 prompts, got %d", len(capturedPrompts))
 	}
-	
+
 	for i, prompt := range capturedPrompts {
 		synapseName := []string{"Binary", "Classification", "Ranking", "Sentiment", "Extraction", "Transform"}[i]
-		
+
 		// All prompts should have these sections in order
 		requiredSections := []string{
 			"Task:",
 			"Return JSON:",
 		}
-		
+
 		for _, section := range requiredSections {
 			if !strings.Contains(prompt, section) {
 				t.Errorf("%s prompt missing required section: %s", synapseName, section)
 			}
 		}
-		
+
 		// Check ordering - Task should come before Return JSON
 		taskIdx := strings.Index(prompt, "Task:")
 		jsonIdx := strings.Index(prompt, "Return JSON:")
-		
+
 		if taskIdx == -1 || jsonIdx == -1 {
 			t.Errorf("%s prompt missing core sections", synapseName)
 		} else if taskIdx > jsonIdx {
 			t.Errorf("%s prompt has incorrect section ordering", synapseName)
 		}
-		
+
 		// Input section (except Ranking which uses Items)
 		if synapseName != "Ranking" {
 			if !strings.Contains(prompt, "Input:") {
@@ -108,12 +108,12 @@ func TestPromptConsistency(t *testing.T) {
 				t.Errorf("%s prompt missing Items section", synapseName)
 			}
 		}
-		
+
 		// All should have Constraints
 		if !strings.Contains(prompt, "Constraints:") {
 			t.Errorf("%s prompt missing Constraints section", synapseName)
 		}
 	}
-	
+
 	t.Log("All synapses using consistent prompt structure ✓")
 }

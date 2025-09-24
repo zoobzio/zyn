@@ -17,6 +17,15 @@ func WithRetry(maxAttempts int) Option {
 	}
 }
 
+// WithBackoff adds retry logic with exponential backoff to the pipeline.
+// Failed requests are retried with increasing delays between attempts.
+// The delay starts at baseDelay and doubles after each failure.
+func WithBackoff(maxAttempts int, baseDelay time.Duration) Option {
+	return func(pipeline pipz.Chainable[*SynapseRequest]) pipz.Chainable[*SynapseRequest] {
+		return pipz.NewBackoff("backoff", pipeline, maxAttempts, baseDelay)
+	}
+}
+
 // WithTimeout adds timeout protection to the pipeline.
 // Operations exceeding this duration will be canceled.
 func WithTimeout(duration time.Duration) Option {

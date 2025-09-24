@@ -12,7 +12,7 @@ import (
 // TestServiceJSON tests JSON parsing functionality.
 func TestServiceJSON(t *testing.T) {
 	// Create a simple pipeline that returns JSON
-	pipeline := pipz.Apply("test", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+	pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		req.Response = `{"decision": true, "confidence": 0.9, "reasoning": ["test"]}`
 		return req, nil
 	})
@@ -21,8 +21,8 @@ func TestServiceJSON(t *testing.T) {
 
 	ctx := context.Background()
 	prompt := &Prompt{
-		Task:  "test task",
-		Input: "test input",
+		Task:   "test task",
+		Input:  "test input",
 		Schema: `{"decision": true/false}`,
 	}
 	response, err := service.Execute(ctx, prompt, 0.5)
@@ -44,7 +44,7 @@ func TestServiceJSON(t *testing.T) {
 // TestServiceInvalidJSON tests handling of invalid JSON.
 func TestServiceInvalidJSON(t *testing.T) {
 	// Create a pipeline that returns invalid JSON
-	pipeline := pipz.Apply("test", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+	pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		req.Response = "not json"
 		return req, nil
 	})
@@ -53,8 +53,8 @@ func TestServiceInvalidJSON(t *testing.T) {
 
 	ctx := context.Background()
 	prompt := &Prompt{
-		Task:  "test task",
-		Input: "test input",
+		Task:   "test task",
+		Input:  "test input",
 		Schema: `{"decision": true/false}`,
 	}
 	_, err := service.Execute(ctx, prompt, 0.5)
@@ -71,7 +71,7 @@ func TestServiceInvalidJSON(t *testing.T) {
 func TestServicePipelineError(t *testing.T) {
 	// Create a pipeline that returns an error
 	expectedErr := errors.New("pipeline error")
-	pipeline := pipz.Apply("test", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+	pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		return req, expectedErr
 	})
 
@@ -79,8 +79,8 @@ func TestServicePipelineError(t *testing.T) {
 
 	ctx := context.Background()
 	prompt := &Prompt{
-		Task:  "test task",
-		Input: "test input",
+		Task:   "test task",
+		Input:  "test input",
 		Schema: `{"decision": true/false}`,
 	}
 	_, err := service.Execute(ctx, prompt, 0.5)
@@ -95,7 +95,7 @@ func TestServicePipelineError(t *testing.T) {
 
 // TestServiceGetPipeline tests pipeline retrieval.
 func TestServiceGetPipeline(t *testing.T) {
-	pipeline := pipz.Apply("test", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+	pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		return req, nil
 	})
 
@@ -111,17 +111,17 @@ func TestServiceGetPipeline(t *testing.T) {
 // TestServiceWithDifferentTypes tests Service with different response types.
 func TestServiceWithDifferentTypes(t *testing.T) {
 	// Test with ClassificationResponse
-	classificationPipeline := pipz.Apply("test", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+	classificationPipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		req.Response = `{"primary": "category1", "secondary": "category2", "confidence": 0.8, "reasoning": ["test"]}`
 		return req, nil
 	})
 
 	classificationService := NewService[ClassificationResponse](classificationPipeline)
 	ctx := context.Background()
-	
+
 	classPrompt := &Prompt{
-		Task:  "classify",
-		Input: "test",
+		Task:   "classify",
+		Input:  "test",
 		Schema: `{}`,
 	}
 	classResponse, err := classificationService.Execute(ctx, classPrompt, 0.5)
@@ -133,16 +133,16 @@ func TestServiceWithDifferentTypes(t *testing.T) {
 	}
 
 	// Test with RankingResponse
-	rankingPipeline := pipz.Apply("test", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+	rankingPipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		req.Response = `{"ranked": ["item1", "item2"], "confidence": 0.7, "reasoning": ["test"]}`
 		return req, nil
 	})
 
 	rankingService := NewService[RankingResponse](rankingPipeline)
-	
+
 	rankPrompt := &Prompt{
-		Task:  "rank",
-		Input: "test",
+		Task:   "rank",
+		Input:  "test",
 		Schema: `{}`,
 	}
 	rankResponse, err := rankingService.Execute(ctx, rankPrompt, 0.5)

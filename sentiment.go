@@ -8,28 +8,36 @@ import (
 	"github.com/zoobzio/pipz"
 )
 
+// Sentiment constants.
+const (
+	sentimentPositive = "positive"
+	sentimentNegative = "negative"
+	sentimentNeutral  = "neutral"
+	sentimentMixed    = "mixed"
+)
+
 // SentimentInput contains rich input structure for sentiment analysis.
 type SentimentInput struct {
-	Text        string  // The text to analyze
-	Context     string  // Additional context about the text
+	Text        string   // The text to analyze
+	Context     string   // Additional context about the text
 	Aspects     []string // Specific aspects to analyze (e.g., "product quality", "customer service")
 	Temperature float32  // LLM temperature setting
 }
 
 // SentimentResponse contains the sentiment analysis results.
 type SentimentResponse struct {
-	Overall    string             `json:"overall"`    // Primary sentiment: positive, negative, neutral, mixed
-	Confidence float64            `json:"confidence"` // Confidence in overall sentiment
-	Scores     SentimentScores    `json:"scores"`     // Detailed sentiment scores
-	Aspects    map[string]string  `json:"aspects"`    // Sentiment per aspect if requested
-	Emotions   []string           `json:"emotions"`   // Detected emotions (joy, anger, fear, etc.)
-	Reasoning  []string           `json:"reasoning"`  // Explanation of analysis
+	Overall    string            `json:"overall"`    // Primary sentiment: positive, negative, neutral, mixed
+	Confidence float64           `json:"confidence"` // Confidence in overall sentiment
+	Scores     SentimentScores   `json:"scores"`     // Detailed sentiment scores
+	Aspects    map[string]string `json:"aspects"`    // Sentiment per aspect if requested
+	Emotions   []string          `json:"emotions"`   // Detected emotions (joy, anger, fear, etc.)
+	Reasoning  []string          `json:"reasoning"`  // Explanation of analysis
 }
 
 // SentimentScores contains detailed sentiment breakdowns.
 type SentimentScores struct {
 	Positive float64 `json:"positive"` // 0.0-1.0 positive sentiment strength
-	Negative float64 `json:"negative"` // 0.0-1.0 negative sentiment strength  
+	Negative float64 `json:"negative"` // 0.0-1.0 negative sentiment strength
 	Neutral  float64 `json:"neutral"`  // 0.0-1.0 neutral sentiment strength
 }
 
@@ -46,7 +54,7 @@ func NewSentiment(analysisType string, provider Provider, opts ...Option) *Senti
 	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		// Render prompt to string for provider
 		promptStr := req.Prompt.Render()
-		response, err := provider.Call(promptStr, req.Temperature)
+		response, err := provider.Call(ctx, promptStr, req.Temperature)
 		if err != nil {
 			return req, err
 		}
@@ -136,7 +144,7 @@ func (s *SentimentSynapse) mergeInputs(input SentimentInput) SentimentInput {
 		merged.Context = input.Context
 	}
 	if len(input.Aspects) > 0 {
-		merged.Aspects = append(s.defaults.Aspects, input.Aspects...)
+		merged.Aspects = append(merged.Aspects, input.Aspects...)
 	}
 	if input.Temperature != 0 {
 		merged.Temperature = input.Temperature
@@ -194,14 +202,14 @@ func (s *SentimentSynapse) buildPrompt(input SentimentInput) *Prompt {
 func normalizeSentiment(sentiment string) string {
 	lower := strings.ToLower(strings.TrimSpace(sentiment))
 	switch lower {
-	case "positive", "pos":
-		return "positive"
-	case "negative", "neg":
-		return "negative"
-	case "neutral", "neu":
-		return "neutral"
-	case "mixed", "mix":
-		return "mixed"
+	case sentimentPositive, "pos":
+		return sentimentPositive
+	case sentimentNegative, "neg":
+		return sentimentNegative
+	case sentimentNeutral, "neu":
+		return sentimentNeutral
+	case sentimentMixed, "mix":
+		return sentimentMixed
 	default:
 		// If unclear, return as-is but log concern
 		return lower
@@ -216,7 +224,7 @@ func normalizeSentiment(sentiment string) string {
 //	synapse := Sentiment("customer feedback", provider)
 //	sentiment, err := synapse.Fire(ctx, "This product exceeded my expectations!")
 //	// Returns: "positive"
-//	
+//
 //	details, err := synapse.FireWithDetails(ctx, text)
 //	// Returns full analysis with scores and emotions
 func Sentiment(analysisType string, provider Provider, opts ...Option) *SentimentSynapse {

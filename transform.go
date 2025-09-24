@@ -9,12 +9,12 @@ import (
 
 // TransformInput contains rich input structure for transformation.
 type TransformInput struct {
-	Text        string  // The text to transform
-	Context     string  // Optional context
-	Style       string  // Optional style guidance
+	Text        string            // The text to transform
+	Context     string            // Optional context
+	Style       string            // Optional style guidance
 	Examples    map[string]string // Optional input->output examples
-	MaxLength   int     // Optional maximum length
-	Temperature float32 // Temperature for creativity
+	MaxLength   int               // Optional maximum length
+	Temperature float32           // Temperature for creativity
 }
 
 // TransformResponse contains the transformed output with metadata.
@@ -38,7 +38,7 @@ func Transform(instruction string, provider Provider, opts ...Option) *Transform
 	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		// Render prompt to string for provider
 		promptStr := req.Prompt.Render()
-		response, err := provider.Call(promptStr, req.Temperature)
+		response, err := provider.Call(ctx, promptStr, req.Temperature)
 		if err != nil {
 			return req, err
 		}

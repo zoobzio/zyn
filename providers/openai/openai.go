@@ -2,6 +2,7 @@ package openai
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -48,7 +49,7 @@ func New(config Config) *Provider {
 }
 
 // Call sends a prompt to OpenAI and returns the response.
-func (p *Provider) Call(prompt string, temperature float32) (string, error) {
+func (p *Provider) Call(ctx context.Context, prompt string, temperature float32) (string, error) {
 	// Build request body
 	requestBody := chatCompletionRequest{
 		Model: p.model,
@@ -67,7 +68,7 @@ func (p *Provider) Call(prompt string, temperature float32) (string, error) {
 	}
 
 	// Create HTTP request
-	req, err := http.NewRequest("POST", p.baseURL+"/chat/completions", bytes.NewReader(jsonBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", p.baseURL+"/chat/completions", bytes.NewReader(jsonBody))
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}

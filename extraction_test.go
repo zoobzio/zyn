@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// Test structs for extraction
+// Test structs for extraction.
 type ContactInfo struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
@@ -23,11 +23,11 @@ type Product struct {
 }
 
 type Meeting struct {
-	Title     string    `json:"title"`
-	Date      string    `json:"date"`
-	Time      string    `json:"time"`
-	Attendees []string  `json:"attendees"`
-	Location  string    `json:"location"`
+	Title     string   `json:"title"`
+	Date      string   `json:"date"`
+	Time      string   `json:"time"`
+	Attendees []string `json:"attendees"`
+	Location  string   `json:"location"`
 }
 
 func TestExtractionBasic(t *testing.T) {
@@ -41,7 +41,7 @@ func TestExtractionBasic(t *testing.T) {
 
 	ctx := context.Background()
 	contact, err := extractor.Fire(ctx, "John Doe can be reached at john@example.com or by phone at (555) 123-4567")
-	
+
 	if err != nil {
 		t.Fatalf("Fire failed: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestExtractionWithSlice(t *testing.T) {
 
 	ctx := context.Background()
 	meeting, err := extractor.Fire(ctx, "Team Standup on January 15, 2024 at 10:00 AM in Conference Room A with Alice, Bob, and Charlie")
-	
+
 	if err != nil {
 		t.Fatalf("Fire failed: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestExtractionWithNumbers(t *testing.T) {
 
 	ctx := context.Background()
 	product, err := extractor.Fire(ctx, "The Laptop Pro X costs $1299.99 and is currently in stock. It's a high-performance laptop with 16GB RAM.")
-	
+
 	if err != nil {
 		t.Fatalf("Fire failed: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestExtractionSliceOfStrings(t *testing.T) {
 
 	ctx := context.Background()
 	emails, err := extractor.Fire(ctx, "Contact us at email1@example.com, email2@test.org, or email3@company.net")
-	
+
 	if err != nil {
 		t.Fatalf("Fire failed: %v", err)
 	}
@@ -129,7 +129,7 @@ func TestExtractionSliceOfStrings(t *testing.T) {
 
 func TestExtractionPromptStructure(t *testing.T) {
 	var capturedPrompt string
-	provider := NewMockProviderWithCallback(func(prompt string, temp float32) (string, error) {
+	provider := NewMockProviderWithCallback(func(prompt string, _ float32) (string, error) {
 		capturedPrompt = prompt
 		return `{"name": "test", "email": "test@example.com", "phone": "123"}`, nil
 	})
@@ -180,7 +180,7 @@ func TestExtractionWithContext(t *testing.T) {
 
 	ctx := context.Background()
 	contact, err := extractor.FireWithInput(ctx, input)
-	
+
 	if err != nil {
 		t.Fatalf("FireWithInput failed: %v", err)
 	}
@@ -189,7 +189,7 @@ func TestExtractionWithContext(t *testing.T) {
 	}
 }
 
-// Test schema generation for various types
+// Test schema generation for various types.
 func TestSchemaGeneration(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -197,18 +197,18 @@ func TestSchemaGeneration(t *testing.T) {
 		contains []string
 	}{
 		{
-			name: "Simple struct",
-			typ:  reflect.TypeOf(ContactInfo{}),
+			name:     "Simple struct",
+			typ:      reflect.TypeOf(ContactInfo{}),
 			contains: []string{`"name"`, `"email"`, `"phone"`},
 		},
 		{
-			name: "Struct with slice",
-			typ:  reflect.TypeOf(Meeting{}),
+			name:     "Struct with slice",
+			typ:      reflect.TypeOf(Meeting{}),
 			contains: []string{`"title"`, `"attendees"`, `[`},
 		},
 		{
-			name: "Slice of strings",
-			typ:  reflect.TypeOf([]string{}),
+			name:     "Slice of strings",
+			typ:      reflect.TypeOf([]string{}),
 			contains: []string{`[`, `"string"`},
 		},
 	}

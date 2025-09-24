@@ -53,6 +53,8 @@ linters-settings:
   
   govet:
     enable-all: true
+    disable:
+      - fieldalignment  # Performance optimization, not critical
   
   errcheck:
     check-type-assertions: true

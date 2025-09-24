@@ -13,7 +13,7 @@ import (
 // TestWithTimeout tests the timeout option.
 func TestWithTimeout(t *testing.T) {
 	// Create a slow pipeline
-	slowPipeline := pipz.Apply("slow", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+	slowPipeline := pipz.Apply("slow", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		time.Sleep(100 * time.Millisecond)
 		req.Response = "slow response"
 		return req, nil
@@ -40,9 +40,9 @@ func TestWithTimeout(t *testing.T) {
 func TestWithRetry(t *testing.T) {
 	// Track number of attempts
 	attempts := 0
-	
+
 	// Create a pipeline that fails first 2 times
-	failingPipeline := pipz.Apply("failing", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+	failingPipeline := pipz.Apply("failing", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		attempts++
 		if attempts < 3 {
 			return req, errors.New("temporary error")
@@ -71,15 +71,66 @@ func TestWithRetry(t *testing.T) {
 	}
 }
 
+// TestWithBackoff tests the backoff option.
+func TestWithBackoff(t *testing.T) {
+	// Track attempts and timing
+	attempts := 0
+	var timestamps []time.Time
+
+	// Create a pipeline that fails first 2 times
+	failingPipeline := pipz.Apply("failing", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		attempts++
+		timestamps = append(timestamps, time.Now())
+		if attempts < 3 {
+			return req, errors.New("temporary error")
+		}
+		req.Response = "success after backoff"
+		return req, nil
+	})
+
+	// Apply backoff with 10ms base delay
+	withBackoff := WithBackoff(3, 10*time.Millisecond)
+	pipeline := withBackoff(failingPipeline)
+
+	// Execute
+	ctx := context.Background()
+	req := &SynapseRequest{Temperature: 0.7}
+	result, err := pipeline.Process(ctx, req)
+
+	// Verify success after retries
+	if err != nil {
+		t.Fatalf("Process failed: %v", err)
+	}
+	if result.Response != "success after backoff" {
+		t.Errorf("Expected 'success after backoff', got %s", result.Response)
+	}
+	if attempts != 3 {
+		t.Errorf("Expected 3 attempts, got %d", attempts)
+	}
+
+	// Verify delays are increasing (exponential backoff)
+	if len(timestamps) >= 3 {
+		delay1 := timestamps[1].Sub(timestamps[0])
+		delay2 := timestamps[2].Sub(timestamps[1])
+
+		// Second delay should be roughly double the first (allowing for some variance)
+		ratio := float64(delay2) / float64(delay1)
+		if ratio < 1.5 || ratio > 2.5 {
+			t.Errorf("Expected exponential backoff, got delays %v and %v (ratio: %f)",
+				delay1, delay2, ratio)
+		}
+	}
+}
+
 // TestOptionFallback tests the fallback option.
 func TestOptionFallback(t *testing.T) {
 	// Create a failing primary provider
-	failingProvider := NewMockProviderWithCallback(func(prompt string, temp float32) (string, error) {
+	failingProvider := NewMockProviderWithCallback(func(_ string, _ float32) (string, error) {
 		return "", errors.New("primary failed")
 	})
 
-	// Create a successful fallback provider  
-	fallbackProvider := NewMockProviderWithCallback(func(prompt string, temp float32) (string, error) {
+	// Create a successful fallback provider
+	fallbackProvider := NewMockProviderWithCallback(func(_ string, _ float32) (string, error) {
 		return `{"decision": true, "confidence": 0.5, "reasoning": ["fallback"]}`, nil
 	})
 
@@ -89,7 +140,7 @@ func TestOptionFallback(t *testing.T) {
 	// Create primary pipeline that will fail
 	primaryPipeline := pipz.Apply("primary", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		promptStr := req.Prompt.Render()
-		response, err := failingProvider.Call(promptStr, req.Temperature)
+		response, err := failingProvider.Call(ctx, promptStr, req.Temperature)
 		if err != nil {
 			return req, err
 		}
@@ -118,9 +169,9 @@ func TestOptionFallback(t *testing.T) {
 // TestOptionComposition tests multiple options together.
 func TestOptionComposition(t *testing.T) {
 	attempts := 0
-	
+
 	// Create a pipeline that fails once then succeeds
-	pipeline := pipz.Apply("test", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+	pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		attempts++
 		if attempts == 1 {
 			return req, errors.New("first attempt fails")

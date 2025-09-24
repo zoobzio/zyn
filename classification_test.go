@@ -91,7 +91,7 @@ func TestClassificationWithExamples(t *testing.T) {
 
 func TestClassificationPromptStructure(t *testing.T) {
 	var capturedPrompt string
-	provider := NewMockProviderWithCallback(func(prompt string, temp float32) (string, error) {
+	provider := NewMockProviderWithCallback(func(prompt string, _ float32) (string, error) {
 		capturedPrompt = prompt
 		return `{"primary": "test", "secondary": "", "confidence": 1.0, "reasoning": ["test"]}`, nil
 	})

@@ -37,7 +37,7 @@ jobs:
       run: go mod download
       
     - name: Run unit tests with race detection
-      run: go test -v -race -timeout=5m ./...
+      run: make test
 
   # Provider integration tests
   provider-tests:
@@ -68,7 +68,7 @@ jobs:
       run: go mod download
       
     - name: Run provider tests
-      run: go test -v -timeout=10m ./providers/${{ matrix.provider }}/...
+      run: make test-providers
 
   # Performance benchmarks
   benchmarks:
@@ -95,7 +95,7 @@ jobs:
       run: go mod download
       
     - name: Run benchmarks
-      run: go test -v -bench=. -benchmem -benchtime=10x -timeout=10m ./... | tee benchmark-results.txt
+      run: make bench-all | tee benchmark-results.txt
       
     - name: Upload benchmark results
       uses: actions/upload-artifact@v4
@@ -128,12 +128,11 @@ jobs:
     - name: Download dependencies
       run: go mod download
       
-    - name: Install golangci-lint
-      run: |
-        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.64.8
+    - name: Install linting tools
+      run: make install-tools
         
-    - name: Run golangci-lint
-      run: golangci-lint run --timeout=5m ./...
+    - name: Run linters
+      run: make lint
       
     - name: Run go vet
       run: go vet ./...

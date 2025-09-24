@@ -2,6 +2,7 @@ package google
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -48,7 +49,7 @@ func New(config Config) *Provider {
 }
 
 // Call sends a prompt to Google Gemini and returns the response.
-func (p *Provider) Call(prompt string, temperature float32) (string, error) {
+func (p *Provider) Call(ctx context.Context, prompt string, temperature float32) (string, error) {
 	// Build request body
 	requestBody := generateContentRequest{
 		Contents: []content{
@@ -74,7 +75,7 @@ func (p *Provider) Call(prompt string, temperature float32) (string, error) {
 	url := fmt.Sprintf("%s/models/%s:generateContent?key=%s", p.baseURL, p.model, p.apiKey)
 
 	// Create HTTP request
-	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonBody))
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
@@ -159,8 +160,8 @@ type generateContentResponse struct {
 }
 
 type candidate struct {
-	Content      *content     `json:"content"`
-	FinishReason string       `json:"finishReason"`
+	Content       *content       `json:"content"`
+	FinishReason  string         `json:"finishReason"`
 	SafetyRatings []safetyRating `json:"safetyRatings,omitempty"`
 }
 

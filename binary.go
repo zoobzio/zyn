@@ -38,7 +38,7 @@ func NewBinary(question string, provider Provider, opts ...Option) *BinarySynaps
 	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		// Render prompt to string for provider
 		promptStr := req.Prompt.Render()
-		response, err := provider.Call(promptStr, req.Temperature)
+		response, err := provider.Call(ctx, promptStr, req.Temperature)
 		if err != nil {
 			return req, err
 		}
@@ -122,13 +122,13 @@ func (b *BinarySynapse) mergeInputs(input BinaryInput) BinaryInput {
 		merged.Context = input.Context
 	}
 	if len(input.Criteria) > 0 {
-		merged.Criteria = append(b.defaults.Criteria, input.Criteria...)
+		merged.Criteria = append(merged.Criteria, input.Criteria...)
 	}
 	if len(input.Examples) > 0 {
-		merged.Examples = append(b.defaults.Examples, input.Examples...)
+		merged.Examples = append(merged.Examples, input.Examples...)
 	}
 	if len(input.Constraints) > 0 {
-		merged.Constraints = append(b.defaults.Constraints, input.Constraints...)
+		merged.Constraints = append(merged.Constraints, input.Constraints...)
 	}
 	if input.Temperature != 0 {
 		merged.Temperature = input.Temperature
@@ -140,8 +140,8 @@ func (b *BinarySynapse) mergeInputs(input BinaryInput) BinaryInput {
 // buildPrompt constructs the prompt from the merged input.
 func (b *BinarySynapse) buildPrompt(input BinaryInput) *Prompt {
 	prompt := &Prompt{
-		Task:  fmt.Sprintf("Determine if %s", b.question),
-		Input: input.Subject,
+		Task:    fmt.Sprintf("Determine if %s", b.question),
+		Input:   input.Subject,
 		Context: input.Context,
 	}
 
@@ -165,9 +165,7 @@ func (b *BinarySynapse) buildPrompt(input BinaryInput) *Prompt {
 	}
 
 	// Add input constraints if provided
-	for _, c := range input.Constraints {
-		prompt.Constraints = append(prompt.Constraints, c)
-	}
+	prompt.Constraints = append(prompt.Constraints, input.Constraints...)
 
 	// Add examples if provided
 	if len(input.Examples) > 0 {

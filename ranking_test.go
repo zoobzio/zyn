@@ -28,7 +28,7 @@ func TestRankingBasic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Fire failed: %v", err)
 	}
-	
+
 	if len(ranked) != 4 {
 		t.Errorf("Expected 4 items, got %d", len(ranked))
 	}
@@ -158,7 +158,7 @@ func TestRankingValidation(t *testing.T) {
 
 func TestRankingPromptStructure(t *testing.T) {
 	var capturedPrompt string
-	provider := NewMockProviderWithCallback(func(prompt string, temp float32) (string, error) {
+	provider := NewMockProviderWithCallback(func(prompt string, _ float32) (string, error) {
 		capturedPrompt = prompt
 		return `{"ranked": ["Task A", "Task B"], "confidence": 1.0, "reasoning": ["test"]}`, nil
 	})

@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// Test structs for conversion
+// Test structs for conversion.
 type UserV1 struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
@@ -35,11 +35,11 @@ type APIProduct struct {
 }
 
 type DBProduct struct {
-	ID           int     `json:"id"`
-	Name         string  `json:"name"`
-	PriceCents   int     `json:"price_cents"`
-	Availability string  `json:"availability"`
-	Description  string  `json:"description"`
+	ID           int    `json:"id"`
+	Name         string `json:"name"`
+	PriceCents   int    `json:"price_cents"`
+	Availability string `json:"availability"`
+	Description  string `json:"description"`
 }
 
 type ExternalEvent struct {
@@ -256,7 +256,7 @@ func TestConvertWithContext(t *testing.T) {
 
 func TestConvertPromptStructure(t *testing.T) {
 	var capturedPrompt string
-	provider := NewMockProviderWithCallback(func(prompt string, temp float32) (string, error) {
+	provider := NewMockProviderWithCallback(func(prompt string, _ float32) (string, error) {
 		capturedPrompt = prompt
 		return `{"full_name": "test", "contact": {"email": "test@test.com"}, "demographics": {"age": 0, "location": "test"}}`, nil
 	})

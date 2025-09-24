@@ -1,6 +1,7 @@
 package zyn
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -30,7 +31,7 @@ func NewMockProviderWithName(name string) *MockProvider {
 }
 
 // Call simulates an LLM call with deterministic responses.
-func (m *MockProvider) Call(prompt string, temperature float32) (string, error) {
+func (m *MockProvider) Call(_ context.Context, prompt string, _ float32) (string, error) {
 	if !m.available {
 		return "", fmt.Errorf("provider %s is unavailable", m.name)
 	}
@@ -62,7 +63,7 @@ func (m *MockProvider) generateResponse(prompt string) string {
 }
 
 // generateEmailValidationResponse creates email validation responses.
-func (m *MockProvider) generateEmailValidationResponse(prompt string) string {
+func (*MockProvider) generateEmailValidationResponse(prompt string) string {
 	// Extract the subject from prompt
 	subject := extractSubject(prompt)
 
@@ -89,7 +90,10 @@ func (m *MockProvider) generateEmailValidationResponse(prompt string) string {
 		response.Reasoning = append(response.Reasoning, "Invalid email format detected")
 	}
 
-	jsonBytes, _ := json.Marshal(response)
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return "Mock response"
+	}
 	return string(jsonBytes)
 }
 
@@ -123,7 +127,7 @@ type mockProviderFixed struct {
 	response string
 }
 
-func (m *mockProviderFixed) Call(prompt string, temperature float32) (string, error) {
+func (m *mockProviderFixed) Call(_ context.Context, _ string, _ float32) (string, error) {
 	return m.response, nil
 }
 
@@ -132,6 +136,6 @@ type mockProviderCallback struct {
 	callback func(string, float32) (string, error)
 }
 
-func (m *mockProviderCallback) Call(prompt string, temperature float32) (string, error) {
+func (m *mockProviderCallback) Call(_ context.Context, prompt string, temperature float32) (string, error) {
 	return m.callback(prompt, temperature)
 }

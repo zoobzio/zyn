@@ -12,7 +12,7 @@ type Prompt struct {
 	Input       string              // Required: the main content to process
 	Context     string              // Optional: additional context
 	Categories  []string            // For classification synapses
-	Items       []string            // For ranking synapses  
+	Items       []string            // For ranking synapses
 	Aspects     []string            // For sentiment analysis
 	Examples    map[string][]string // Category->examples for classification
 	Schema      string              // Required: JSON schema for response
@@ -23,22 +23,22 @@ type Prompt struct {
 // It enforces consistent ordering and formatting across all synapses.
 func (p *Prompt) Render() string {
 	var sections []string
-	
+
 	// Task is always first
 	if p.Task != "" {
 		sections = append(sections, "Task: "+p.Task)
 	}
-	
+
 	// Input is always second
 	if p.Input != "" {
 		sections = append(sections, "Input: "+p.Input)
 	}
-	
+
 	// Optional context
 	if p.Context != "" {
 		sections = append(sections, "Context: "+p.Context)
 	}
-	
+
 	// Categories (for classification)
 	if len(p.Categories) > 0 {
 		cat := "Categories:\n"
@@ -47,7 +47,7 @@ func (p *Prompt) Render() string {
 		}
 		sections = append(sections, strings.TrimSpace(cat))
 	}
-	
+
 	// Items (for ranking)
 	if len(p.Items) > 0 {
 		items := "Items:\n"
@@ -56,7 +56,7 @@ func (p *Prompt) Render() string {
 		}
 		sections = append(sections, strings.TrimSpace(items))
 	}
-	
+
 	// Aspects (for sentiment)
 	if len(p.Aspects) > 0 {
 		aspects := "Aspects:\n"
@@ -65,7 +65,7 @@ func (p *Prompt) Render() string {
 		}
 		sections = append(sections, strings.TrimSpace(aspects))
 	}
-	
+
 	// Examples (if provided)
 	if len(p.Examples) > 0 {
 		examples := "Examples:\n"
@@ -79,12 +79,12 @@ func (p *Prompt) Render() string {
 		}
 		sections = append(sections, strings.TrimSpace(examples))
 	}
-	
+
 	// Schema - always required
 	if p.Schema != "" {
 		sections = append(sections, "Return JSON:\n"+p.Schema)
 	}
-	
+
 	// Constraints - always last
 	if len(p.Constraints) > 0 {
 		con := "Constraints:\n"
@@ -93,7 +93,7 @@ func (p *Prompt) Render() string {
 		}
 		sections = append(sections, strings.TrimSpace(con))
 	}
-	
+
 	return strings.Join(sections, "\n\n")
 }
 

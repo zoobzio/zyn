@@ -35,7 +35,7 @@ func Convert[TInput any, TOutput any](instruction string, provider Provider, opt
 	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		// Render prompt to string for provider
 		promptStr := req.Prompt.Render()
-		response, err := provider.Call(promptStr, req.Temperature)
+		response, err := provider.Call(ctx, promptStr, req.Temperature)
 		if err != nil {
 			return req, err
 		}

@@ -36,7 +36,7 @@ func NewRanking(criteria string, provider Provider, opts ...Option) *RankingSyna
 	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		// Render prompt to string for provider
 		promptStr := req.Prompt.Render()
-		response, err := provider.Call(promptStr, req.Temperature)
+		response, err := provider.Call(ctx, promptStr, req.Temperature)
 		if err != nil {
 			return req, err
 		}
@@ -128,7 +128,7 @@ func (r *RankingSynapse) mergeInputs(input RankingInput) RankingInput {
 		merged.Context = input.Context
 	}
 	if len(input.Examples) > 0 {
-		merged.Examples = append(r.defaults.Examples, input.Examples...)
+		merged.Examples = append(merged.Examples, input.Examples...)
 	}
 	if input.TopN > 0 {
 		merged.TopN = input.TopN
@@ -191,7 +191,7 @@ func (r *RankingSynapse) buildPrompt(input RankingInput) *Prompt {
 }
 
 // validateResponse ensures the ranking is valid.
-func (r *RankingSynapse) validateResponse(response RankingResponse, input RankingInput) error {
+func (*RankingSynapse) validateResponse(response RankingResponse, input RankingInput) error {
 	// Empty response is always invalid
 	if len(response.Ranked) == 0 {
 		return fmt.Errorf("empty ranking returned")

@@ -1,4 +1,4 @@
-.PHONY: test bench lint coverage clean all help test-providers test-integration test-all ci
+.PHONY: test bench bench-all lint coverage clean all help test-providers test-integration test-benchmarks test-reliability test-all ci check lint-fix install-tools
 
 # Default target
 all: test lint
@@ -6,19 +6,22 @@ all: test lint
 # Display help
 help:
 	@echo "zyn Development Commands"
-	@echo "============================"
+	@echo "========================"
 	@echo ""
 	@echo "Testing & Quality:"
 	@echo "  make test            - Run unit tests with race detector"
 	@echo "  make test-providers  - Run provider tests"
-	@echo "  make test-integration- Run integration tests"
-	@echo "  make test-all        - Run all test suites"
-	@echo "  make bench           - Run benchmarks"
+	@echo "  make test-integration- Run integration tests with race detector"
+	@echo "  make test-benchmarks - Run performance benchmarks"
+	@echo "  make test-reliability- Run reliability/resilience tests"
+	@echo "  make test-all        - Run all test suites (unit + integration + reliability)"
+	@echo "  make bench           - Run core library benchmarks"
+	@echo "  make bench-all       - Run all benchmarks"
 	@echo "  make lint            - Run linters"
 	@echo "  make lint-fix        - Run linters with auto-fix"
 	@echo "  make coverage        - Generate coverage report (HTML)"
 	@echo "  make check           - Run tests and lint (quick check)"
-	@echo "  make ci              - Full CI simulation"
+	@echo "  make ci              - Full CI simulation (all tests + quality checks)"
 	@echo ""
 	@echo "Other:"
 	@echo "  make install-tools   - Install required development tools"
@@ -35,18 +38,35 @@ test-providers:
 	@echo "Running provider tests..."
 	@go test -v -race ./providers/...
 
-# Run integration tests
+# Run integration tests - component interaction verification
 test-integration:
 	@echo "Running integration tests..."
 	@go test -v -race -tags=integration -timeout=10m ./...
 
-# Run all test suites
-test-all: test test-providers test-integration
+# Run benchmark tests - performance regression detection
+test-benchmarks:
+	@echo "Running performance benchmarks..."
+	@go test -v -bench=. -benchmem -benchtime=100ms -timeout=15m ./...
+
+# Run reliability tests - resilience pattern verification
+test-reliability:
+	@echo "Running reliability tests..."
+	@go test -v -race -timeout=10m -run TestResilience ./...
+	@go test -v -race -timeout=5m -run TestPanic ./...
+	@go test -v -race -timeout=10m -run TestConcurrent ./...
+
+# Comprehensive test suite - all tests with race detection
+test-all: test test-integration test-reliability
 	@echo "All test suites completed!"
 
-# Run benchmarks
+# Run core benchmarks
 bench:
-	@echo "Running benchmarks..."
+	@echo "Running core benchmarks..."
+	@go test -bench=. -benchmem -benchtime=100ms -timeout=15m .
+
+# Run all benchmarks
+bench-all:
+	@echo "Running all benchmarks..."
 	@go test -bench=. -benchmem -benchtime=100ms -timeout=15m ./...
 
 # Run linters
@@ -79,12 +99,12 @@ clean:
 # Install development tools
 install-tools:
 	@echo "Installing development tools..."
-	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0
 
 # Quick check - run tests and lint
 check: test lint
 	@echo "All checks passed!"
 
-# CI simulation - what CI runs
-ci: clean lint test test-providers coverage
+# CI simulation - what CI runs locally
+ci: clean lint test test-integration test-benchmarks test-reliability coverage
 	@echo "Full CI simulation complete!"

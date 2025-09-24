@@ -37,7 +37,7 @@ func NewExtraction[T any](what string, provider Provider, opts ...Option) *Extra
 	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		// Render prompt to string for provider
 		promptStr := req.Prompt.Render()
-		response, err := provider.Call(promptStr, req.Temperature)
+		response, err := provider.Call(ctx, promptStr, req.Temperature)
 		if err != nil {
 			return req, err
 		}
@@ -168,15 +168,15 @@ func generateJSONSchema(t reflect.Type) string {
 // generateStructSchema generates schema for struct types.
 func generateStructSchema(t reflect.Type) string {
 	var fields []string
-	
+
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
-		
+
 		// Skip unexported fields
 		if !field.IsExported() {
 			continue
 		}
-		
+
 		// Get JSON tag or use field name
 		jsonTag := field.Tag.Get("json")
 		if jsonTag == "" {
@@ -187,17 +187,17 @@ func generateStructSchema(t reflect.Type) string {
 				jsonTag = jsonTag[:idx]
 			}
 		}
-		
+
 		// Skip fields with json:"-"
 		if jsonTag == "-" {
 			continue
 		}
-		
+
 		// Generate example value based on type
 		example := generateExampleValue(field.Type)
-		fields = append(fields, fmt.Sprintf(`  "%s": %s`, jsonTag, example))
+		fields = append(fields, fmt.Sprintf(`  %q: %s`, jsonTag, example))
 	}
-	
+
 	return "{\n" + strings.Join(fields, ",\n") + "\n}"
 }
 
@@ -225,7 +225,7 @@ func generateExampleValue(t reflect.Type) string {
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-	
+
 	switch t.Kind() {
 	case reflect.String:
 		return `"string"`
@@ -266,7 +266,7 @@ func generateExampleValue(t reflect.Type) string {
 //	    Name  string `json:"name"`
 //	    Email string `json:"email"`
 //	}
-//	
+//
 //	extractor := Extract[Contact]("contact information", provider)
 //	contact, err := extractor.Fire(ctx, "John Doe at john@example.com")
 func Extract[T any](what string, provider Provider, opts ...Option) *ExtractionSynapse[T] {

@@ -2,6 +2,7 @@ package bedrock
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -14,11 +15,11 @@ import (
 
 // Provider implements the zyn Provider interface for AWS Bedrock.
 type Provider struct {
-	region      string
-	accessKey   string
-	secretKey   string
-	model       string
-	httpClient  *http.Client
+	region     string
+	accessKey  string
+	secretKey  string
+	model      string
+	httpClient *http.Client
 }
 
 // Config holds configuration for the Bedrock provider.
@@ -51,12 +52,13 @@ func New(config Config) *Provider {
 }
 
 // Call sends a prompt to Bedrock and returns the response.
-func (p *Provider) Call(prompt string, temperature float32) (string, error) {
+func (p *Provider) Call(ctx context.Context, prompt string, temperature float32) (string, error) {
 	// Build request body based on model
 	var requestBody interface{}
 	var contentType string
 
-	if contains(p.model, "claude") {
+	switch {
+	case contains(p.model, "claude"):
 		// Anthropic Claude format
 		requestBody = claudeRequest{
 			Prompt:      fmt.Sprintf("\n\nHuman: %s\n\nAssistant:", prompt),
@@ -64,7 +66,7 @@ func (p *Provider) Call(prompt string, temperature float32) (string, error) {
 			Temperature: temperature,
 		}
 		contentType = "application/json"
-	} else if contains(p.model, "titan") {
+	case contains(p.model, "titan"):
 		// Amazon Titan format
 		requestBody = titanRequest{
 			InputText: prompt,
@@ -74,7 +76,7 @@ func (p *Provider) Call(prompt string, temperature float32) (string, error) {
 			},
 		}
 		contentType = "application/json"
-	} else {
+	default:
 		return "", fmt.Errorf("unsupported model: %s", p.model)
 	}
 
@@ -88,7 +90,7 @@ func (p *Provider) Call(prompt string, temperature float32) (string, error) {
 		p.region, p.model)
 
 	// Create request
-	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonBody))
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
@@ -143,14 +145,14 @@ func (p *Provider) Call(prompt string, temperature float32) (string, error) {
 	return "", fmt.Errorf("failed to parse response for model: %s", p.model)
 }
 
-// signRequest adds simplified AWS Signature V4 headers
-func (p *Provider) signRequest(req *http.Request, payload []byte) {
+// signRequest adds simplified AWS Signature V4 headers.
+func (p *Provider) signRequest(req *http.Request, _ []byte) {
 	now := time.Now().UTC()
 	dateStr := now.Format("20060102T150405Z")
-	
+
 	// Add required headers
 	req.Header.Set("X-Amz-Date", dateStr)
-	
+
 	// Simplified signature (in production, use AWS SDK for proper signing)
 	h := hmac.New(sha256.New, []byte("AWS4"+p.secretKey))
 	h.Write([]byte(dateStr[:8]))
@@ -158,7 +160,7 @@ func (p *Provider) signRequest(req *http.Request, payload []byte) {
 	h.Write([]byte("bedrock"))
 	h.Write([]byte("aws4_request"))
 	signature := hex.EncodeToString(h.Sum(nil))
-	
+
 	authHeader := fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s/%s/bedrock/aws4_request, SignedHeaders=content-type;host;x-amz-date, Signature=%s",
 		p.accessKey, dateStr[:8], p.region, signature)
 	req.Header.Set("Authorization", authHeader)
@@ -197,6 +199,6 @@ type bedrockError struct {
 }
 
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && 
+	return len(s) >= len(substr) &&
 		bytes.Contains([]byte(s), []byte(substr))
 }

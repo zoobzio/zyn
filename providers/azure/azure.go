@@ -2,6 +2,7 @@ package azure
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,11 +12,11 @@ import (
 
 // Provider implements the zyn Provider interface for Azure OpenAI Service.
 type Provider struct {
-	endpoint    string
-	apiKey      string
-	deployment  string
-	apiVersion  string
-	httpClient  *http.Client
+	endpoint   string
+	apiKey     string
+	deployment string
+	apiVersion string
+	httpClient *http.Client
 }
 
 // Config holds configuration for the Azure provider.
@@ -48,7 +49,7 @@ func New(config Config) *Provider {
 }
 
 // Call sends a prompt to Azure OpenAI and returns the response.
-func (p *Provider) Call(prompt string, temperature float32) (string, error) {
+func (p *Provider) Call(ctx context.Context, prompt string, temperature float32) (string, error) {
 	// Build request body (same as OpenAI)
 	requestBody := chatCompletionRequest{
 		Messages: []message{
@@ -70,7 +71,7 @@ func (p *Provider) Call(prompt string, temperature float32) (string, error) {
 		p.endpoint, p.deployment, p.apiVersion)
 
 	// Create HTTP request
-	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonBody))
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}

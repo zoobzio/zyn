@@ -18,9 +18,9 @@ func TestTransformSummary(t *testing.T) {
 	summarizer := Transform("summarize into key points", provider, WithTimeout(5*time.Second))
 
 	ctx := context.Background()
-	
+
 	longText := "Artificial intelligence systems are revolutionizing how we process information. These systems use complex neural networks to analyze patterns in data. Natural language processing allows computers to understand human language. Computer vision enables machines to interpret visual information. Robotics combines these technologies for physical automation."
-	
+
 	// Test simple Fire
 	summary, err := summarizer.Fire(ctx, longText)
 	if err != nil {
@@ -125,8 +125,8 @@ func TestTransformWithExamples(t *testing.T) {
 	input := TransformInput{
 		Text: "the process is beginning",
 		Examples: map[string]string{
-			"hello world":    "Hello World",
-			"testing this":   "Testing This",
+			"hello world":  "Hello World",
+			"testing this": "Testing This",
 		},
 	}
 
@@ -167,7 +167,7 @@ func TestTransformWithMaxLength(t *testing.T) {
 
 func TestTransformPromptStructure(t *testing.T) {
 	var capturedPrompt string
-	provider := NewMockProviderWithCallback(func(prompt string, temp float32) (string, error) {
+	provider := NewMockProviderWithCallback(func(prompt string, _ float32) (string, error) {
 		capturedPrompt = prompt
 		return `{"output": "test", "confidence": 1.0, "changes": [], "reasoning": ["test"]}`, nil
 	})
@@ -236,13 +236,13 @@ func TestTransformVariousUseCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			provider := NewMockProviderWithResponse(tt.response)
 			transformer := Transform(tt.instruction, provider)
-			
+
 			ctx := context.Background()
 			result, err := transformer.Fire(ctx, tt.input)
 			if err != nil {
 				t.Fatalf("Fire failed: %v", err)
 			}
-			
+
 			if !tt.checkOutput(result) {
 				t.Errorf("Unexpected output for %s: %s", tt.name, result)
 			}
