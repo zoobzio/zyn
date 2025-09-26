@@ -1,4 +1,4 @@
-module zyn
+module github.com/zoobzio/zyn
 
 go 1.23.2
 
