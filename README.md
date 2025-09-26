@@ -1,5 +1,3 @@
-# zyn
-
 [![CI Status](https://github.com/zoobzio/zyn/workflows/CI/badge.svg)](https://github.com/zoobzio/zyn/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/zoobzio/zyn/graph/badge.svg?branch=main)](https://codecov.io/gh/zoobzio/zyn)
 [![Go Report Card](https://goreportcard.com/badge/github.com/zoobzio/zyn)](https://goreportcard.com/report/github.com/zoobzio/zyn)
@@ -8,6 +6,8 @@
 [![License](https://img.shields.io/github/license/zoobzio/zyn)](LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/zoobzio/zyn)](go.mod)
 [![Release](https://img.shields.io/github/v/release/zoobzio/zyn)](https://github.com/zoobzio/zyn/releases)
+
+# zyn
 
 **Type-safe LLM orchestration framework with composable reliability patterns**
 
@@ -35,7 +35,7 @@ import (
     "context"
     "fmt"
     "os"
-    
+
     "github.com/zoobzio/zyn"
     "github.com/zoobzio/zyn/providers/openai"
 )
@@ -45,7 +45,7 @@ func main() {
     provider := openai.New(openai.Config{
         APIKey: os.Getenv("OPENAI_API_KEY"),
     })
-    
+
     // Create synapse with reliability features
     classifier := zyn.Classification(
         "What type of email is this?",
@@ -54,14 +54,14 @@ func main() {
         zyn.WithRetry(3),
         zyn.WithTimeout(10*time.Second),
     )
-    
+
     // Use it
     ctx := context.Background()
     category, err := classifier.Fire(ctx, "URGENT: Your account will be suspended!")
     if err != nil {
         panic(err)
     }
-    
+
     fmt.Println("Category:", category) // "urgent"
 }
 ```
@@ -71,20 +71,23 @@ func main() {
 zyn provides 8 synapse types covering all LLM interaction patterns:
 
 ### Decision & Analysis
+
 - **Binary** - Yes/no decisions with confidence scores
 - **Classification** - Categorize into predefined classes
 - **Ranking** - Order items by specified criteria
 - **Sentiment** - Analyze emotional tone with aspects
 
 ### Data Transformation
+
 - **Extraction** - Extract structured data from text (string → struct[T])
-- **Transform** - Transform text (string → string)  
+- **Transform** - Transform text (string → string)
 - **Analyze** - Analyze structured data (struct[T] → string)
 - **Convert** - Convert between types (struct[TInput] → struct[TOutput])
 
 ## Examples
 
 ### Binary Decision
+
 ```go
 validator := zyn.Binary("Is this a valid email address?", provider)
 isValid, err := validator.Fire(ctx, "user@example.com")
@@ -92,8 +95,9 @@ isValid, err := validator.Fire(ctx, "user@example.com")
 ```
 
 ### Classification with Examples
+
 ```go
-classifier := zyn.Classification("Classify sentiment", 
+classifier := zyn.Classification("Classify sentiment",
     []string{"positive", "negative", "neutral"}, provider)
 
 input := zyn.ClassificationInput{
@@ -109,6 +113,7 @@ result, err := classifier.FireWithInput(ctx, input)
 ```
 
 ### Structured Data Extraction
+
 ```go
 type Contact struct {
     Name  string `json:"name"`
@@ -122,6 +127,7 @@ contact, err := extractor.Fire(ctx, "John Doe at john@example.com or (555) 123-4
 ```
 
 ### Text Transformation
+
 ```go
 summarizer := zyn.Transform("summarize into key points", provider)
 summary, err := summarizer.Fire(ctx, longArticle)
@@ -131,6 +137,7 @@ spanish, err := translator.Fire(ctx, "Hello, how are you?")
 ```
 
 ### Data Analysis
+
 ```go
 type ServerMetrics struct {
     CPU    float64 `json:"cpu_usage"`
@@ -144,6 +151,7 @@ analysis, err := analyzer.Fire(ctx, metrics)
 ```
 
 ### Type Conversion
+
 ```go
 type UserV1 struct {
     Name  string `json:"name"`
@@ -166,6 +174,7 @@ v2User, err := converter.Fire(ctx, v1User)
 zyn supports multiple LLM providers:
 
 ### OpenAI
+
 ```go
 provider := openai.New(openai.Config{
     APIKey: os.Getenv("OPENAI_API_KEY"),
@@ -174,6 +183,7 @@ provider := openai.New(openai.Config{
 ```
 
 ### Anthropic
+
 ```go
 provider := anthropic.New(anthropic.Config{
     APIKey: os.Getenv("ANTHROPIC_API_KEY"),
@@ -182,6 +192,7 @@ provider := anthropic.New(anthropic.Config{
 ```
 
 ### Google Gemini
+
 ```go
 provider := google.New(google.Config{
     APIKey: os.Getenv("GOOGLE_API_KEY"),
@@ -190,6 +201,7 @@ provider := google.New(google.Config{
 ```
 
 ### Azure OpenAI
+
 ```go
 provider := azure.New(azure.Config{
     Endpoint:   "https://your-resource.openai.azure.com",
@@ -199,6 +211,7 @@ provider := azure.New(azure.Config{
 ```
 
 ### AWS Bedrock
+
 ```go
 provider := bedrock.New(bedrock.Config{
     Region:    "us-east-1",
@@ -216,19 +229,19 @@ zyn integrates with [pipz](https://github.com/zoobzio/pipz) for composable relia
 synapse := zyn.Binary("question", provider,
     // Retry with exponential backoff
     zyn.WithRetry(3),
-    
+
     // Circuit breaker protection
     zyn.WithCircuitBreaker(5, 30*time.Second),
-    
+
     // Rate limiting
     zyn.WithRateLimit(10, 100),
-    
+
     // Timeout protection
     zyn.WithTimeout(30*time.Second),
-    
+
     // Fallback to another provider
     zyn.WithFallback(backupSynapse),
-    
+
     // Custom error handling
     zyn.WithErrorHandler(errorPipeline),
 )
@@ -241,12 +254,12 @@ Handle errors with custom pipelines:
 ```go
 errorLogger := pipz.Apply("log-errors", func(ctx context.Context, e *pipz.Error[*zyn.SynapseRequest]) (*pipz.Error[*zyn.SynapseRequest], error) {
     log.Printf("Synapse failed: %v", e.Err)
-    
+
     // Track metrics
     if strings.Contains(e.Err.Error(), "rate limit") {
         metrics.Increment("rate_limit_errors")
     }
-    
+
     return e, nil
 })
 
@@ -266,9 +279,9 @@ func TestMyFunction(t *testing.T) {
         "confidence": 0.95,
         "reasoning": ["Valid email format", "Contains @ symbol"]
     }`)
-    
+
     validator := zyn.Binary("Is this valid?", mockProvider)
-    
+
     result, err := validator.Fire(context.Background(), "test@example.com")
     assert.NoError(t, err)
     assert.True(t, result)
