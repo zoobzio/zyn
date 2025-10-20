@@ -1,11 +1,11 @@
 package main
 
 import (
-	"time"
 	"context"
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/zoobzio/zyn"
 	"github.com/zoobzio/zyn/providers/openai"

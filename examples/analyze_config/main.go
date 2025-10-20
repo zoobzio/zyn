@@ -1,11 +1,11 @@
 package main
 
 import (
-	"time"
 	"context"
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/zoobzio/zyn"
 	"github.com/zoobzio/zyn/providers/openai"
@@ -28,7 +28,7 @@ type CacheConfig struct {
 }
 
 type APIConfig struct {
-	RateLimit int  `json:"rate_limit"`
+	RateLimit  int  `json:"rate_limit"`
 	EnableCORS bool `json:"enable_cors"`
 }
 
