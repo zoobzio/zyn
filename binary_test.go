@@ -83,7 +83,7 @@ func TestWithDefaults(t *testing.T) {
 // TestWithFallback tests fallback synapse configuration.
 func TestWithFallback(t *testing.T) {
 	primary := NewMockProviderWithName("openai-gpt-4")
-	fallbackProvider := NewMockProviderWithName("anthropic-claude-3")
+	fallbackProvider := NewMockProviderWithName("openai-gpt-3.5")
 
 	// Compose with fallback
 	synapse := Binary("Is this valid?", primary,
@@ -106,7 +106,7 @@ func TestWithFallback(t *testing.T) {
 func TestChaining(t *testing.T) {
 	// Create reusable providers
 	primary := NewMockProviderWithName("openai-gpt-4")
-	fallbackProvider := NewMockProviderWithName("anthropic-claude-3")
+	fallbackProvider := NewMockProviderWithName("openai-gpt-3.5")
 
 	// Create synapse with all options
 	synapse := Binary("Is this production ready?", primary,

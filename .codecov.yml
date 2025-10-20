@@ -67,6 +67,7 @@ ignore:
   - "docs/**"                 # Documentation
   - ".github/**"              # GitHub workflows
   - "vendor/**"               # Vendor directory (if exists)
+  - "examples/**"             # Examples directory
 
 # Comment configuration for PRs
 comment:

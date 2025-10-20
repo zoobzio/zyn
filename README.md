@@ -17,7 +17,7 @@ zyn provides a clean, type-safe way to orchestrate Large Language Model (LLM) in
 
 - **8 Synapse Types** covering all LLM interaction patterns
 - **Type-Safe Generics** with compile-time guarantees
-- **5 Provider Implementations** (OpenAI, Anthropic, Google, Azure, Bedrock)
+- **OpenAI Provider** with extensible provider interface
 - **Built-in Reliability** via [pipz](https://github.com/zoobzio/pipz) integration
 - **Zero Dependencies** for core library
 - **Structured Prompts** preventing prompt divergence
@@ -169,55 +169,14 @@ converter := zyn.Convert[UserV1, UserV2]("migrate to v2 schema", provider)
 v2User, err := converter.Fire(ctx, v1User)
 ```
 
-## Providers
+## Provider
 
-zyn supports multiple LLM providers:
-
-### OpenAI
+zyn uses OpenAI as its LLM provider:
 
 ```go
 provider := openai.New(openai.Config{
     APIKey: os.Getenv("OPENAI_API_KEY"),
     Model:  "gpt-4",
-})
-```
-
-### Anthropic
-
-```go
-provider := anthropic.New(anthropic.Config{
-    APIKey: os.Getenv("ANTHROPIC_API_KEY"),
-    Model:  "claude-3-opus-20240229",
-})
-```
-
-### Google Gemini
-
-```go
-provider := google.New(google.Config{
-    APIKey: os.Getenv("GOOGLE_API_KEY"),
-    Model:  "gemini-pro",
-})
-```
-
-### Azure OpenAI
-
-```go
-provider := azure.New(azure.Config{
-    Endpoint:   "https://your-resource.openai.azure.com",
-    APIKey:     os.Getenv("AZURE_API_KEY"),
-    Deployment: "gpt-4-deployment",
-})
-```
-
-### AWS Bedrock
-
-```go
-provider := bedrock.New(bedrock.Config{
-    Region:    "us-east-1",
-    AccessKey: os.Getenv("AWS_ACCESS_KEY"),
-    SecretKey: os.Getenv("AWS_SECRET_KEY"),
-    Model:     "anthropic.claude-v2",
 })
 ```
 
