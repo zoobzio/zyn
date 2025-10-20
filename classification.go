@@ -143,13 +143,8 @@ func (c *ClassificationSynapse) buildPrompt(input ClassificationInput) *Prompt {
 		Examples:   input.Examples,
 	}
 
-	// Build schema
-	prompt.Schema = `{
-  "primary": "category",
-  "secondary": "category or empty",
-  "confidence": 0.0-1.0,
-  "reasoning": ["step 1", "step 2", "step 3"]
-}`
+	// Build schema using sentinel
+	prompt.Schema = generateJSONSchema[ClassificationResponse]()
 
 	// Build constraints
 	prompt.Constraints = []string{

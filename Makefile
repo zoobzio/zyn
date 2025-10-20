@@ -1,4 +1,4 @@
-.PHONY: test bench bench-all lint coverage clean all help test-providers test-integration test-benchmarks test-reliability test-all ci check lint-fix install-tools
+.PHONY: test bench bench-all lint coverage clean all help test-providers test-integration test-benchmarks test-reliability test-all ci check lint-fix install-tools examples example-list
 
 # Default target
 all: test lint
@@ -22,6 +22,11 @@ help:
 	@echo "  make coverage        - Generate coverage report (HTML)"
 	@echo "  make check           - Run tests and lint (quick check)"
 	@echo "  make ci              - Full CI simulation (all tests + quality checks)"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make examples        - Run all examples (requires .env with OPENAI_API_KEY)"
+	@echo "  make example-list    - List all available examples"
+	@echo "  make example EX=<name> - Run specific example (e.g., make example EX=sentiment)"
 	@echo ""
 	@echo "Other:"
 	@echo "  make install-tools   - Install required development tools"
@@ -108,3 +113,80 @@ check: test lint
 # CI simulation - what CI runs locally
 ci: clean lint test test-integration test-benchmarks test-reliability coverage
 	@echo "Full CI simulation complete!"
+
+# List all available examples
+example-list:
+	@echo "Available examples:"
+	@echo ""
+	@echo "Sentiment Analysis:"
+	@echo "  sentiment          - Basic sentiment analysis"
+	@echo "  sentiment_review   - Product review sentiment with aspects"
+	@echo "  sentiment_social   - Social media sentiment analysis"
+	@echo ""
+	@echo "Binary Decisions:"
+	@echo "  binary             - Simple yes/no question"
+	@echo "  binary_spam        - Spam detection"
+	@echo "  binary_toxicity    - Toxicity detection"
+	@echo ""
+	@echo "Classification:"
+	@echo "  classification     - Text categorization"
+	@echo "  classification_email   - Email priority classification"
+	@echo "  classification_content - Content type classification"
+	@echo ""
+	@echo "Extraction:"
+	@echo "  extraction         - Extract technologies from text"
+	@echo "  extraction_entities    - Extract names and organizations"
+	@echo "  extraction_dates   - Extract dates and deadlines"
+	@echo ""
+	@echo "Ranking:"
+	@echo "  ranking_popularity     - Rank by popularity"
+	@echo "  ranking_priority   - Rank by urgency"
+	@echo "  ranking_performance    - Rank by performance"
+	@echo ""
+	@echo "Transformation:"
+	@echo "  transform_summarize    - Summarize text"
+	@echo "  transform_formalize    - Convert to formal language"
+	@echo "  transform_translate    - Translate jargon to plain English"
+	@echo ""
+	@echo "Analysis:"
+	@echo "  analyze_code       - Analyze code for bugs"
+	@echo "  analyze_data       - Analyze business data"
+	@echo "  analyze_config     - Analyze system configuration"
+	@echo ""
+	@echo "Conversion:"
+	@echo "  convert_user       - Convert legacy to modern schema"
+	@echo "  convert_event      - Convert raw to structured event"
+	@echo "  convert_metric     - Normalize metrics"
+	@echo ""
+	@echo "Usage: make example EX=<name>"
+
+# Run specific example
+example:
+	@if [ -z "$(EX)" ]; then \
+		echo "Error: Please specify an example name"; \
+		echo "Usage: make example EX=<name>"; \
+		echo "Run 'make example-list' to see available examples"; \
+		exit 1; \
+	fi
+	@if [ ! -f .env ]; then \
+		echo "Warning: .env file not found. Copy .env.example to .env and add your API keys."; \
+		echo ""; \
+	fi
+	@set -a && [ -f .env ] && . ./.env && set +a; go run examples/$(EX)/main.go
+
+# Run all examples
+examples:
+	@if [ ! -f .env ]; then \
+		echo "Error: .env file not found"; \
+		echo "Please copy .env.example to .env and add your OPENAI_API_KEY"; \
+		exit 1; \
+	fi
+	@echo "Running all examples..."
+	@set -a && . ./.env && set +a && \
+	for example in examples/*/main.go; do \
+		echo ""; \
+		echo "=== Running $$example ==="; \
+		go run $$example || true; \
+	done
+	@echo ""
+	@echo "All examples completed!"

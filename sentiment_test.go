@@ -211,8 +211,8 @@ func TestSentimentPromptStructure(t *testing.T) {
 	if !strings.Contains(capturedPrompt, "Input: test input") {
 		t.Error("Prompt missing input")
 	}
-	if !strings.Contains(capturedPrompt, "positive/negative/neutral/mixed") {
-		t.Error("Prompt missing sentiment options")
+	if !strings.Contains(capturedPrompt, `"overall"`) {
+		t.Error("Prompt missing overall field")
 	}
 	if !strings.Contains(capturedPrompt, `"emotions"`) {
 		t.Error("Prompt missing emotions field")

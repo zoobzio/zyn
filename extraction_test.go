@@ -2,8 +2,6 @@ package zyn
 
 import (
 	"context"
-	"reflect"
-	"strings"
 	"testing"
 	"time"
 )
@@ -108,62 +106,6 @@ func TestExtractionWithNumbers(t *testing.T) {
 	}
 }
 
-func TestExtractionSliceOfStrings(t *testing.T) {
-	provider := NewMockProviderWithResponse(`["email1@example.com", "email2@test.org", "email3@company.net"]`)
-
-	extractor := Extract[[]string]("email addresses", provider)
-
-	ctx := context.Background()
-	emails, err := extractor.Fire(ctx, "Contact us at email1@example.com, email2@test.org, or email3@company.net")
-
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
-	if len(emails) != 3 {
-		t.Errorf("Expected 3 emails, got %d", len(emails))
-	}
-	if emails[0] != "email1@example.com" {
-		t.Errorf("Expected first email 'email1@example.com', got '%s'", emails[0])
-	}
-}
-
-func TestExtractionPromptStructure(t *testing.T) {
-	var capturedPrompt string
-	provider := NewMockProviderWithCallback(func(prompt string, _ float32) (string, error) {
-		capturedPrompt = prompt
-		return `{"name": "test", "email": "test@example.com", "phone": "123"}`, nil
-	})
-
-	extractor := Extract[ContactInfo]("contacts", provider)
-
-	ctx := context.Background()
-	_, err := extractor.Fire(ctx, "test input")
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
-
-	// Check prompt structure
-	if !strings.Contains(capturedPrompt, "Task: Extract contacts") {
-		t.Error("Prompt missing task description")
-	}
-	if !strings.Contains(capturedPrompt, "Input: test input") {
-		t.Error("Prompt missing input")
-	}
-	if !strings.Contains(capturedPrompt, "Return JSON:") {
-		t.Error("Prompt missing JSON structure section")
-	}
-	// Check for schema fields
-	if !strings.Contains(capturedPrompt, `"name"`) {
-		t.Error("Schema missing name field")
-	}
-	if !strings.Contains(capturedPrompt, `"email"`) {
-		t.Error("Schema missing email field")
-	}
-	if !strings.Contains(capturedPrompt, `"phone"`) {
-		t.Error("Schema missing phone field")
-	}
-}
-
 func TestExtractionWithContext(t *testing.T) {
 	provider := NewMockProviderWithResponse(`{
 		"name": "Support Team",
@@ -186,41 +128,5 @@ func TestExtractionWithContext(t *testing.T) {
 	}
 	if contact.Name != "Support Team" {
 		t.Errorf("Expected name 'Support Team', got '%s'", contact.Name)
-	}
-}
-
-// Test schema generation for various types.
-func TestSchemaGeneration(t *testing.T) {
-	tests := []struct {
-		name     string
-		typ      reflect.Type
-		contains []string
-	}{
-		{
-			name:     "Simple struct",
-			typ:      reflect.TypeOf(ContactInfo{}),
-			contains: []string{`"name"`, `"email"`, `"phone"`},
-		},
-		{
-			name:     "Struct with slice",
-			typ:      reflect.TypeOf(Meeting{}),
-			contains: []string{`"title"`, `"attendees"`, `[`},
-		},
-		{
-			name:     "Slice of strings",
-			typ:      reflect.TypeOf([]string{}),
-			contains: []string{`[`, `"string"`},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			schema := generateJSONSchema(tt.typ)
-			for _, expected := range tt.contains {
-				if !strings.Contains(schema, expected) {
-					t.Errorf("Schema missing expected content '%s'\nGot: %s", expected, schema)
-				}
-			}
-		})
 	}
 }

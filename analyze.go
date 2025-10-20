@@ -150,13 +150,8 @@ func (a *AnalyzeSynapse[T]) buildPrompt(input AnalyzeInput[T]) *Prompt {
 		Context: input.Context,
 	}
 
-	// Build schema
-	prompt.Schema = `{
-  "analysis": "detailed analysis text",
-  "confidence": 0.0-1.0,
-  "findings": ["finding 1", "finding 2"],
-  "reasoning": ["step 1", "step 2"]
-}`
+	// Build schema using sentinel
+	prompt.Schema = generateJSONSchema[AnalyzeResponse]()
 
 	// Build constraints
 	constraints := []string{

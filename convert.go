@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
 
 	"github.com/zoobzio/pipz"
 )
@@ -28,8 +27,7 @@ type ConvertSynapse[TInput any, TOutput any] struct {
 // Convert creates a new struct-to-struct conversion synapse.
 func Convert[TInput any, TOutput any](instruction string, provider Provider, opts ...Option) *ConvertSynapse[TInput, TOutput] {
 	// Pre-compute the output schema once at construction
-	var output TOutput
-	outputSchema := generateJSONSchema(reflect.TypeOf(output))
+	outputSchema := generateJSONSchema[TOutput]()
 
 	// Create terminal pipeline stage that calls the provider
 	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {

@@ -3,8 +3,6 @@ package zyn
 import (
 	"context"
 	"fmt"
-	"reflect"
-	"strings"
 
 	"github.com/zoobzio/pipz"
 )
@@ -30,8 +28,7 @@ type ExtractionSynapse[T any] struct {
 // The type parameter T defines the structure to extract.
 func NewExtraction[T any](what string, provider Provider, opts ...Option) *ExtractionSynapse[T] {
 	// Generate schema once at construction
-	var zero T
-	schema := generateJSONSchema(reflect.TypeOf(zero))
+	schema := generateJSONSchema[T]()
 
 	// Create terminal processor that calls the provider
 	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
@@ -130,8 +127,17 @@ func (e *ExtractionSynapse[T]) buildPrompt(input ExtractionInput) *Prompt {
 
 	// Add examples if provided
 	if input.Examples != "" {
-		prompt.Examples = map[string][]string{
-			"examples": strings.Split(input.Examples, "\n"),
+		// Split examples by newline
+		lines := []string{}
+		for _, line := range splitLines(input.Examples) {
+			if line != "" {
+				lines = append(lines, line)
+			}
+		}
+		if len(lines) > 0 {
+			prompt.Examples = map[string][]string{
+				"examples": lines,
+			}
 		}
 	}
 
@@ -145,116 +151,22 @@ func (e *ExtractionSynapse[T]) buildPrompt(input ExtractionInput) *Prompt {
 	return prompt
 }
 
-// generateJSONSchema creates a JSON schema from a Go type using reflection.
-func generateJSONSchema(t reflect.Type) string {
-	// Handle pointers
-	if t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-
-	switch t.Kind() {
-	case reflect.Struct:
-		return generateStructSchema(t)
-	case reflect.Slice:
-		return generateSliceSchema(t)
-	case reflect.Map:
-		return generateMapSchema(t)
-	default:
-		// For simple types, just return an example
-		return generateSimpleSchema(t)
-	}
-}
-
-// generateStructSchema generates schema for struct types.
-func generateStructSchema(t reflect.Type) string {
-	var fields []string
-
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-
-		// Skip unexported fields
-		if !field.IsExported() {
-			continue
-		}
-
-		// Get JSON tag or use field name
-		jsonTag := field.Tag.Get("json")
-		if jsonTag == "" {
-			jsonTag = field.Name
+// splitLines splits a string by newlines.
+func splitLines(s string) []string {
+	var lines []string
+	current := ""
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\n' {
+			lines = append(lines, current)
+			current = ""
 		} else {
-			// Handle json tag options like "name,omitempty"
-			if idx := strings.Index(jsonTag, ","); idx != -1 {
-				jsonTag = jsonTag[:idx]
-			}
+			current += string(s[i])
 		}
-
-		// Skip fields with json:"-"
-		if jsonTag == "-" {
-			continue
-		}
-
-		// Generate example value based on type
-		example := generateExampleValue(field.Type)
-		fields = append(fields, fmt.Sprintf(`  %q: %s`, jsonTag, example))
 	}
-
-	return "{\n" + strings.Join(fields, ",\n") + "\n}"
-}
-
-// generateSliceSchema generates schema for slice types.
-func generateSliceSchema(t reflect.Type) string {
-	elemExample := generateExampleValue(t.Elem())
-	return fmt.Sprintf("[%s]", elemExample)
-}
-
-// generateMapSchema generates schema for map types.
-func generateMapSchema(t reflect.Type) string {
-	keyExample := generateExampleValue(t.Key())
-	valueExample := generateExampleValue(t.Elem())
-	return fmt.Sprintf("{%s: %s}", keyExample, valueExample)
-}
-
-// generateSimpleSchema generates schema for simple types.
-func generateSimpleSchema(t reflect.Type) string {
-	return generateExampleValue(t)
-}
-
-// generateExampleValue creates an example value for a type.
-func generateExampleValue(t reflect.Type) string {
-	// Handle pointers
-	if t.Kind() == reflect.Ptr {
-		t = t.Elem()
+	if current != "" {
+		lines = append(lines, current)
 	}
-
-	switch t.Kind() {
-	case reflect.String:
-		return `"string"`
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return "0"
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return "0"
-	case reflect.Float32, reflect.Float64:
-		return "0.0"
-	case reflect.Bool:
-		return "false"
-	case reflect.Struct:
-		// Handle special cases
-		if t.String() == "time.Time" {
-			return `"2024-01-01T00:00:00Z"`
-		}
-		return generateStructSchema(t)
-	case reflect.Slice:
-		elemExample := generateExampleValue(t.Elem())
-		return fmt.Sprintf("[%s]", elemExample)
-	case reflect.Map:
-		keyExample := generateExampleValue(t.Key())
-		valueExample := generateExampleValue(t.Elem())
-		return fmt.Sprintf("{%s: %s}", keyExample, valueExample)
-	case reflect.Interface:
-		return "{}"
-	default:
-		return "null"
-	}
+	return lines
 }
 
 // Extract creates a new extraction synapse bound to a provider.

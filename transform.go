@@ -165,13 +165,8 @@ func (t *TransformSynapse) buildPrompt(input TransformInput) *Prompt {
 		prompt.Examples = examples
 	}
 
-	// Build schema
-	prompt.Schema = `{
-  "output": "transformed text",
-  "confidence": 0.0-1.0,
-  "changes": ["change 1", "change 2"],
-  "reasoning": ["step 1", "step 2"]
-}`
+	// Build schema using sentinel
+	prompt.Schema = generateJSONSchema[TransformResponse]()
 
 	// Build constraints
 	constraints := []string{

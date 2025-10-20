@@ -48,7 +48,7 @@ func (m *MockProvider) SetAvailable(available bool) {
 // generateResponse creates a response based on prompt patterns.
 func (m *MockProvider) generateResponse(prompt string) string {
 	// Check for JSON response request
-	if strings.Contains(prompt, "Return JSON:") {
+	if strings.Contains(prompt, "Response JSON Schema:") {
 		// Binary decision pattern
 		if strings.Contains(prompt, "valid email") || strings.Contains(prompt, "email") {
 			return m.generateEmailValidationResponse(prompt)

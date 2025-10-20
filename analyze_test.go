@@ -278,8 +278,8 @@ func TestAnalyzePromptStructure(t *testing.T) {
 	if !strings.Contains(capturedPrompt, `"value": 42`) {
 		t.Error("Prompt missing JSON data")
 	}
-	if !strings.Contains(capturedPrompt, "Return JSON:") {
-		t.Error("Prompt missing JSON structure")
+	if !strings.Contains(capturedPrompt, "Response JSON Schema:") {
+		t.Error("Prompt missing JSON schema")
 	}
 	if !strings.Contains(capturedPrompt, `"analysis"`) {
 		t.Error("Schema missing analysis field")

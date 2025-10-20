@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 )
@@ -81,6 +82,30 @@ func TestProviderCall(t *testing.T) {
 	if response != "test response" {
 		t.Errorf("Expected 'test response', got '%s'", response)
 	}
+}
+
+func TestOpenAIIntegration(t *testing.T) {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		t.Skip("OPENAI_API_KEY not set, skipping integration test")
+	}
+
+	ctx := context.Background()
+	provider := New(Config{
+		APIKey: apiKey,
+		Model:  "gpt-3.5-turbo",
+	})
+
+	response, err := provider.Call(ctx, "Say 'test successful' and nothing else.", 0.7)
+	if err != nil {
+		t.Fatalf("Call failed: %v", err)
+	}
+
+	if response == "" {
+		t.Error("Expected non-empty response")
+	}
+
+	t.Logf("Response: %s", response)
 }
 
 func TestProviderErrorHandling(t *testing.T) {

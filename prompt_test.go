@@ -14,7 +14,7 @@ func TestPromptConsistency(t *testing.T) {
 		capturedPrompts = append(capturedPrompts, prompt)
 
 		// Return appropriate response based on prompt content
-		if strings.Contains(prompt, "Return JSON:") {
+		if strings.Contains(prompt, "Response JSON Schema:") {
 			if strings.Contains(prompt, "decision") {
 				return `{"decision": true, "confidence": 0.9, "reasoning": ["test"]}`, nil
 			}
@@ -79,7 +79,7 @@ func TestPromptConsistency(t *testing.T) {
 		// All prompts should have these sections in order
 		requiredSections := []string{
 			"Task:",
-			"Return JSON:",
+			"Response JSON Schema:",
 		}
 
 		for _, section := range requiredSections {
@@ -88,9 +88,9 @@ func TestPromptConsistency(t *testing.T) {
 			}
 		}
 
-		// Check ordering - Task should come before Return JSON
+		// Check ordering - Task should come before Response Schema
 		taskIdx := strings.Index(prompt, "Task:")
-		jsonIdx := strings.Index(prompt, "Return JSON:")
+		jsonIdx := strings.Index(prompt, "Response JSON Schema:")
 
 		if taskIdx == -1 || jsonIdx == -1 {
 			t.Errorf("%s prompt missing core sections", synapseName)

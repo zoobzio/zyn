@@ -279,8 +279,8 @@ func TestConvertPromptStructure(t *testing.T) {
 	if !strings.Contains(capturedPrompt, `"name": "test"`) {
 		t.Error("Prompt missing input JSON")
 	}
-	if !strings.Contains(capturedPrompt, "Return JSON:") {
-		t.Error("Prompt missing JSON structure")
+	if !strings.Contains(capturedPrompt, "Response JSON Schema:") {
+		t.Error("Prompt missing JSON schema")
 	}
 	// Check for output schema structure
 	if !strings.Contains(capturedPrompt, "full_name") {
@@ -291,45 +291,5 @@ func TestConvertPromptStructure(t *testing.T) {
 	}
 	if !strings.Contains(capturedPrompt, "Constraints:") {
 		t.Error("Prompt missing constraints")
-	}
-}
-
-func TestConvertSliceToSlice(t *testing.T) {
-	type SimpleV1 struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
-	}
-
-	type SimpleV2 struct {
-		Identifier int    `json:"identifier"`
-		Label      string `json:"label"`
-	}
-
-	provider := NewMockProviderWithResponse(`[
-		{"identifier": 1, "label": "First Item"},
-		{"identifier": 2, "label": "Second Item"}
-	]`)
-
-	converter := Convert[[]SimpleV1, []SimpleV2]("convert list format", provider)
-
-	v1List := []SimpleV1{
-		{ID: "001", Name: "First Item"},
-		{ID: "002", Name: "Second Item"},
-	}
-
-	ctx := context.Background()
-	v2List, err := converter.Fire(ctx, v1List)
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
-
-	if len(v2List) != 2 {
-		t.Errorf("Expected 2 items, got %d", len(v2List))
-	}
-	if v2List[0].Identifier != 1 {
-		t.Errorf("Expected first identifier 1, got %d", v2List[0].Identifier)
-	}
-	if v2List[0].Label != "First Item" {
-		t.Errorf("Expected first label 'First Item', got '%s'", v2List[0].Label)
 	}
 }

@@ -50,7 +50,7 @@ func New(config Config) *Provider {
 
 // Call sends a prompt to OpenAI and returns the response.
 func (p *Provider) Call(ctx context.Context, prompt string, temperature float32) (string, error) {
-	// Build request body
+	// Build request body with JSON mode enabled
 	requestBody := chatCompletionRequest{
 		Model: p.model,
 		Messages: []message{
@@ -60,6 +60,9 @@ func (p *Provider) Call(ctx context.Context, prompt string, temperature float32)
 			},
 		},
 		Temperature: temperature,
+		ResponseFormat: &responseFormat{
+			Type: "json_object",
+		},
 	}
 
 	jsonBody, err := json.Marshal(requestBody)
@@ -117,10 +120,15 @@ func (p *Provider) Call(ctx context.Context, prompt string, temperature float32)
 
 // Request/Response types for OpenAI API
 
+type responseFormat struct {
+	Type string `json:"type"`
+}
+
 type chatCompletionRequest struct {
-	Model       string    `json:"model"`
-	Messages    []message `json:"messages"`
-	Temperature float32   `json:"temperature"`
+	Model          string          `json:"model"`
+	Messages       []message       `json:"messages"`
+	Temperature    float32         `json:"temperature"`
+	ResponseFormat *responseFormat `json:"response_format,omitempty"`
 }
 
 type message struct {

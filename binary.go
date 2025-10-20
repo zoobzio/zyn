@@ -145,12 +145,8 @@ func (b *BinarySynapse) buildPrompt(input BinaryInput) *Prompt {
 		Context: input.Context,
 	}
 
-	// Build schema
-	prompt.Schema = `{
-  "decision": true/false,
-  "confidence": 0.0-1.0,
-  "reasoning": ["step 1", "step 2", "step 3"]
-}`
+	// Build schema using sentinel
+	prompt.Schema = generateJSONSchema[BinaryResponse]()
 
 	// Build constraints
 	prompt.Constraints = []string{

@@ -2,7 +2,10 @@ module github.com/zoobzio/zyn
 
 go 1.23.2
 
-require github.com/zoobzio/pipz v0.0.9
+require (
+	github.com/zoobzio/pipz v0.0.9
+	github.com/zoobzio/sentinel v0.0.4
+)
 
 require (
 	github.com/zoobzio/clockz v0.0.2 // indirect

@@ -82,7 +82,7 @@ func (p *Prompt) Render() string {
 
 	// Schema - always required
 	if p.Schema != "" {
-		sections = append(sections, "Return JSON:\n"+p.Schema)
+		sections = append(sections, "Response JSON Schema:\n"+p.Schema)
 	}
 
 	// Constraints - always last

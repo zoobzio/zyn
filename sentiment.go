@@ -162,26 +162,8 @@ func (s *SentimentSynapse) buildPrompt(input SentimentInput) *Prompt {
 		Aspects: input.Aspects,
 	}
 
-	// Build schema
-	schemaFormat := `{
-  "overall": "positive/negative/neutral/mixed",
-  "confidence": 0.0-1.0,
-  "scores": {
-    "positive": 0.0-1.0,
-    "negative": 0.0-1.0,
-    "neutral": 0.0-1.0
-  },
-  "aspects": %s,
-  "emotions": ["emotion1", "emotion2"],
-  "reasoning": ["step 1", "step 2", "step 3"]
-}`
-
-	// Adjust aspects format based on input
-	aspectsFormat := "{}"
-	if len(input.Aspects) > 0 {
-		aspectsFormat = `{"aspect": "positive/negative/neutral"}`
-	}
-	prompt.Schema = fmt.Sprintf(schemaFormat, aspectsFormat)
+	// Build schema using sentinel
+	prompt.Schema = generateJSONSchema[SentimentResponse]()
 
 	// Build constraints
 	prompt.Constraints = []string{

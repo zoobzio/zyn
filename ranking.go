@@ -155,20 +155,8 @@ func (r *RankingSynapse) buildPrompt(input RankingInput) *Prompt {
 		}
 	}
 
-	// Build schema
-	if input.TopN > 0 {
-		prompt.Schema = fmt.Sprintf(`{
-  "ranked": [%d items],
-  "confidence": 0.0-1.0,
-  "reasoning": ["step 1", "step 2", "step 3"]
-}`, input.TopN)
-	} else {
-		prompt.Schema = `{
-  "ranked": ["item1", "item2", "..."],
-  "confidence": 0.0-1.0,
-  "reasoning": ["step 1", "step 2", "step 3"]
-}`
-	}
+	// Build schema using sentinel
+	prompt.Schema = generateJSONSchema[RankingResponse]()
 
 	// Build constraints
 	if input.TopN > 0 {

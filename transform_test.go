@@ -187,8 +187,8 @@ func TestTransformPromptStructure(t *testing.T) {
 	if !strings.Contains(capturedPrompt, "Input: test input") {
 		t.Error("Prompt missing input")
 	}
-	if !strings.Contains(capturedPrompt, "Return JSON:") {
-		t.Error("Prompt missing JSON structure")
+	if !strings.Contains(capturedPrompt, "Response JSON Schema:") {
+		t.Error("Prompt missing JSON schema")
 	}
 	if !strings.Contains(capturedPrompt, `"output"`) {
 		t.Error("Schema missing output field")
