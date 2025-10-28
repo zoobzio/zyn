@@ -2,329 +2,430 @@ package zyn
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 )
 
-// Test structs for analysis.
-type EmailData struct {
-	From    string   `json:"from"`
-	To      []string `json:"to"`
-	Subject string   `json:"subject"`
-	Body    string   `json:"body"`
-	Links   []string `json:"links"`
+type TestData struct {
+	Value int    `json:"value"`
+	Name  string `json:"name"`
 }
 
-type CodeMetrics struct {
-	LinesOfCode  int      `json:"lines_of_code"`
-	Complexity   int      `json:"complexity"`
-	Coverage     float64  `json:"coverage"`
-	Dependencies []string `json:"dependencies"`
-}
+func TestAnalyze(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Analyze[TestData]("data quality", provider)
 
-type ServerConfig struct {
-	Port         int             `json:"port"`
-	MaxConns     int             `json:"max_connections"`
-	Timeout      string          `json:"timeout"`
-	AllowedHosts []string        `json:"allowed_hosts"`
-	Features     map[string]bool `json:"features"`
-}
-
-func TestAnalyzeEmail(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"analysis": "This email appears to be a phishing attempt. The sender domain does not match the claimed organization, and the links redirect through suspicious tracking URLs. The urgent language and request for credentials are classic phishing indicators.",
-		"confidence": 0.92,
-		"findings": [
-			"Sender domain mismatch",
-			"Suspicious link redirects",
-			"Urgent action language",
-			"Credential request"
-		],
-		"reasoning": [
-			"Analyzed sender authentication",
-			"Checked link destinations",
-			"Evaluated message content patterns",
-			"Compared against phishing indicators"
-		]
-	}`)
-
-	analyzer := Analyze[EmailData]("check for phishing indicators", provider, WithTimeout(5*time.Second))
-
-	email := EmailData{
-		From:    "security@amaz0n-verify.com",
-		To:      []string{"user@example.com"},
-		Subject: "Urgent: Verify Your Account",
-		Body:    "Your account will be suspended. Click here immediately to verify.",
-		Links:   []string{"http://bit.ly/verify-account"},
-	}
-
-	ctx := context.Background()
-
-	// Test simple Fire
-	analysis, err := analyzer.Fire(ctx, email)
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
-	if !strings.Contains(analysis, "phishing") {
-		t.Errorf("Analysis should identify phishing")
-	}
-
-	// Test FireWithDetails
-	details, err := analyzer.FireWithDetails(ctx, email)
-	if err != nil {
-		t.Fatalf("FireWithDetails failed: %v", err)
-	}
-	if details.Confidence != 0.92 {
-		t.Errorf("Expected confidence 0.92, got %f", details.Confidence)
-	}
-	if len(details.Findings) != 4 {
-		t.Errorf("Expected 4 findings, got %d", len(details.Findings))
-	}
-	if !strings.Contains(details.Findings[0], "domain mismatch") {
-		t.Errorf("Expected domain mismatch finding")
-	}
-}
-
-func TestAnalyzeCodeMetrics(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"analysis": "The codebase shows moderate complexity with adequate test coverage. The high number of dependencies suggests potential maintenance challenges. Consider refactoring complex functions and reducing external dependencies.",
-		"confidence": 0.85,
-		"findings": [
-			"Complexity exceeds recommended threshold",
-			"Test coverage is acceptable at 78%",
-			"High dependency count"
-		],
-		"reasoning": [
-			"Evaluated complexity metrics",
-			"Analyzed coverage percentage",
-			"Assessed dependency risks"
-		]
-	}`)
-
-	analyzer := Analyze[CodeMetrics]("code quality assessment", provider)
-
-	metrics := CodeMetrics{
-		LinesOfCode:  5000,
-		Complexity:   42,
-		Coverage:     0.78,
-		Dependencies: []string{"react", "redux", "axios", "lodash", "moment", "uuid"},
-	}
-
-	ctx := context.Background()
-	result, err := analyzer.Fire(ctx, metrics)
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
-	if !strings.Contains(result, "complexity") {
-		t.Errorf("Analysis should mention complexity")
-	}
-	if !strings.Contains(result, "coverage") {
-		t.Errorf("Analysis should mention coverage")
-	}
-}
-
-func TestAnalyzeServerConfig(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"analysis": "Configuration has security concerns: debug mode enabled in production, overly permissive host whitelist, and very high connection limit without rate limiting.",
-		"confidence": 0.88,
-		"findings": [
-			"Debug mode enabled",
-			"Wildcard in allowed hosts",
-			"No rate limiting with high connection limit"
-		],
-		"reasoning": [
-			"Checked production settings",
-			"Evaluated security configurations",
-			"Analyzed resource limits"
-		]
-	}`)
-
-	analyzer := Analyze[ServerConfig]("security configuration review", provider)
-
-	config := ServerConfig{
-		Port:         8080,
-		MaxConns:     10000,
-		Timeout:      "30s",
-		AllowedHosts: []string{"*"},
-		Features: map[string]bool{
-			"debug":        true,
-			"rate_limit":   false,
-			"auth_enabled": true,
-		},
-	}
-
-	ctx := context.Background()
-	details, err := analyzer.FireWithDetails(ctx, config)
-	if err != nil {
-		t.Fatalf("FireWithDetails failed: %v", err)
-	}
-	if !strings.Contains(details.Analysis, "security concerns") {
-		t.Errorf("Analysis should identify security concerns")
-	}
-	if len(details.Findings) != 3 {
-		t.Errorf("Expected 3 findings, got %d", len(details.Findings))
-	}
-}
-
-func TestAnalyzeWithFocus(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"analysis": "Performance analysis: The configuration shows potential bottlenecks with low connection limit (100) and short timeout (5s) that may cause issues under load.",
-		"confidence": 0.82,
-		"findings": [
-			"Connection limit may be too restrictive",
-			"Timeout too short for slow clients"
-		],
-		"reasoning": [
-			"Focused on performance implications",
-			"Evaluated throughput limitations"
-		]
-	}`)
-
-	analyzer := Analyze[ServerConfig]("configuration review", provider)
-
-	config := ServerConfig{
-		Port:         3000,
-		MaxConns:     100,
-		Timeout:      "5s",
-		AllowedHosts: []string{"localhost", "api.example.com"},
-		Features: map[string]bool{
-			"caching": false,
-		},
-	}
-
-	input := AnalyzeInput[ServerConfig]{
-		Data:  config,
-		Focus: "performance implications",
-	}
-
-	ctx := context.Background()
-	details, err := analyzer.FireWithInputDetails(ctx, input)
-	if err != nil {
-		t.Fatalf("FireWithInputDetails failed: %v", err)
-	}
-	if !strings.Contains(details.Analysis, "Performance") {
-		t.Errorf("Analysis should focus on performance")
-	}
-}
-
-func TestAnalyzeWithContext(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"analysis": "For a development environment, the configuration is appropriate. Debug mode and wildcard hosts are acceptable for local development but must be changed before production deployment.",
-		"confidence": 0.90,
-		"findings": [
-			"Settings appropriate for development",
-			"Must update before production"
-		],
-		"reasoning": [
-			"Evaluated in development context",
-			"Different standards than production"
-		]
-	}`)
-
-	analyzer := Analyze[ServerConfig]("configuration review", provider)
-
-	config := ServerConfig{
-		Port:         8080,
-		MaxConns:     10000,
-		Timeout:      "30s",
-		AllowedHosts: []string{"*"},
-		Features: map[string]bool{
-			"debug": true,
-		},
-	}
-
-	input := AnalyzeInput[ServerConfig]{
-		Data:    config,
-		Context: "This is for a local development environment",
-	}
-
-	ctx := context.Background()
-	result, err := analyzer.FireWithInput(ctx, input)
-	if err != nil {
-		t.Fatalf("FireWithInput failed: %v", err)
-	}
-	if !strings.Contains(result, "development") {
-		t.Errorf("Analysis should acknowledge development context")
-	}
-}
-
-func TestAnalyzePromptStructure(t *testing.T) {
-	var capturedPrompt string
-	provider := NewMockProviderWithCallback(func(prompt string, _ float32) (string, error) {
-		capturedPrompt = prompt
-		return `{"analysis": "test", "confidence": 1.0, "findings": [], "reasoning": ["test"]}`, nil
+		if synapse == nil {
+			t.Fatal("Analyze wrapper returned nil")
+		}
 	})
 
-	type SimpleData struct {
-		Value int `json:"value"`
-	}
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Analyze[TestData]("data quality", provider,
+			WithRetry(3),
+			WithTimeout(10*time.Second))
 
-	analyzer := Analyze[SimpleData]("data validation", provider)
+		if synapse == nil {
+			t.Fatal("Analyze wrapper with options returned nil")
+		}
 
-	ctx := context.Background()
-	_, err := analyzer.Fire(ctx, SimpleData{Value: 42})
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
+		ctx := context.Background()
+		_, err := synapse.Fire(ctx, TestData{Value: 42, Name: "test"})
+		if err != nil {
+			t.Errorf("Analyze synapse Fire failed: %v", err)
+		}
+	})
 
-	// Check prompt structure
-	if !strings.Contains(capturedPrompt, "Task: Analyze: data validation") {
-		t.Error("Prompt missing task description")
-	}
-	if !strings.Contains(capturedPrompt, "Input:") {
-		t.Error("Prompt missing input section")
-	}
-	if !strings.Contains(capturedPrompt, `"value": 42`) {
-		t.Error("Prompt missing JSON data")
-	}
-	if !strings.Contains(capturedPrompt, "Response JSON Schema:") {
-		t.Error("Prompt missing JSON schema")
-	}
-	if !strings.Contains(capturedPrompt, `"analysis"`) {
-		t.Error("Schema missing analysis field")
-	}
-	if !strings.Contains(capturedPrompt, `"findings"`) {
-		t.Error("Schema missing findings field")
-	}
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"analysis": "test result", "confidence": 0.9, "findings": [], "reasoning": ["test"]}`)
+		synapse := Analyze[TestData]("data quality", provider)
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, TestData{Value: 42, Name: "test"})
+		if err != nil {
+			t.Fatalf("Analyze with chaining failed: %v", err)
+		}
+		if result == "" {
+			t.Error("Expected non-empty result")
+		}
+	})
 }
 
-func TestAnalyzeSliceInput(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"analysis": "The log entries show a pattern of failed authentication attempts from the same IP, suggesting a potential brute force attack.",
-		"confidence": 0.87,
-		"findings": [
-			"Multiple failed auth attempts",
-			"Same source IP",
-			"Rapid succession timing"
-		],
-		"reasoning": [
-			"Pattern analysis of log entries",
-			"Timing correlation"
-		]
-	}`)
+func TestAnalyzeSynapse_GetPipeline(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Analyze[TestData]("test", provider)
 
-	type LogEntry struct {
-		Timestamp string `json:"timestamp"`
-		Level     string `json:"level"`
-		Message   string `json:"message"`
-		IP        string `json:"ip"`
-	}
+		pipeline := synapse.GetPipeline()
+		if pipeline == nil {
+			t.Error("GetPipeline returned nil")
+		}
+	})
 
-	analyzer := Analyze[[]LogEntry]("security event analysis", provider)
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Analyze[TestData]("test", provider, WithRetry(3))
 
-	logs := []LogEntry{
-		{Timestamp: "2024-01-01T10:00:00Z", Level: "ERROR", Message: "Auth failed", IP: "192.168.1.100"},
-		{Timestamp: "2024-01-01T10:00:05Z", Level: "ERROR", Message: "Auth failed", IP: "192.168.1.100"},
-		{Timestamp: "2024-01-01T10:00:10Z", Level: "ERROR", Message: "Auth failed", IP: "192.168.1.100"},
-	}
+		pipeline := synapse.GetPipeline()
+		if pipeline == nil {
+			t.Error("GetPipeline returned nil with retry option")
+		}
+	})
 
-	ctx := context.Background()
-	analysis, err := analyzer.Fire(ctx, logs)
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
-	if !strings.Contains(analysis, "brute force") || !strings.Contains(analysis, "pattern") {
-		t.Errorf("Analysis should identify the attack pattern")
-	}
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Analyze[TestData]("test", provider)
+
+		pipeline := synapse.GetPipeline()
+		if pipeline == nil {
+			t.Fatal("GetPipeline returned nil")
+		}
+
+		ctx := context.Background()
+		prompt := &Prompt{Task: "test", Input: "test", Schema: "{}"}
+		req := &SynapseRequest{Prompt: prompt, Temperature: 0.5}
+		_, err := pipeline.Process(ctx, req)
+		if err != nil {
+			t.Errorf("Pipeline processing failed: %v", err)
+		}
+	})
+}
+
+func TestAnalyzeSynapse_Fire(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"analysis": "valid data", "confidence": 0.9, "findings": [], "reasoning": ["test"]}`)
+		synapse := Analyze[TestData]("data quality", provider)
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, TestData{Value: 42, Name: "test"})
+		if err != nil {
+			t.Fatalf("Fire failed: %v", err)
+		}
+		if result == "" {
+			t.Error("Expected non-empty analysis")
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"analysis": "test", "confidence": 0.9, "findings": [], "reasoning": ["test"]}`)
+		synapse := Analyze[TestData]("test", provider,
+			WithRetry(2),
+			WithTimeout(5*time.Second))
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, TestData{Value: 1, Name: "test"})
+		if err != nil {
+			t.Fatalf("Fire with reliability options failed: %v", err)
+		}
+		if result == "" {
+			t.Error("Expected non-empty result")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		failing := NewMockProviderWithError("primary failed")
+		fallbackProvider := NewMockProviderWithResponse(`{"analysis": "fallback analysis", "confidence": 0.8, "findings": [], "reasoning": ["fallback"]}`)
+		fallbackSynapse := Analyze[TestData]("test", fallbackProvider)
+
+		synapse := Analyze[TestData]("test", failing,
+			WithFallback(fallbackSynapse))
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, TestData{Value: 1, Name: "test"})
+		if err != nil {
+			t.Fatalf("Fire with fallback failed: %v", err)
+		}
+		if result == "" {
+			t.Error("Expected result from fallback")
+		}
+	})
+}
+
+func TestAnalyzeSynapse_FireWithDetails(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"analysis": "detailed analysis", "confidence": 0.95, "findings": ["finding1"], "reasoning": ["reason1"]}`)
+		synapse := Analyze[TestData]("test", provider)
+
+		ctx := context.Background()
+		response, err := synapse.FireWithDetails(ctx, TestData{Value: 42, Name: "test"})
+		if err != nil {
+			t.Fatalf("FireWithDetails failed: %v", err)
+		}
+		if response.Analysis == "" {
+			t.Error("Expected analysis to be set")
+		}
+		if response.Confidence != 0.95 {
+			t.Errorf("Expected confidence 0.95, got %f", response.Confidence)
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"analysis": "test", "confidence": 0.8, "findings": [], "reasoning": ["test"]}`)
+		synapse := Analyze[TestData]("test", provider,
+			WithRetry(3),
+			WithBackoff(2, 10*time.Millisecond))
+
+		ctx := context.Background()
+		response, err := synapse.FireWithDetails(ctx, TestData{Value: 1, Name: "test"})
+		if err != nil {
+			t.Fatalf("FireWithDetails with backoff failed: %v", err)
+		}
+		if response.Analysis == "" {
+			t.Error("Expected analysis")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"analysis": "test", "confidence": 0.9, "findings": [], "reasoning": ["test"]}`)
+		synapse := Analyze[TestData]("test", provider)
+
+		ctx := context.Background()
+		response, err := synapse.FireWithDetails(ctx, TestData{Value: 42, Name: "test"})
+		if err != nil {
+			t.Fatalf("FireWithDetails failed: %v", err)
+		}
+		if response.Analysis == "" {
+			t.Error("Expected analysis")
+		}
+	})
+}
+
+func TestAnalyzeSynapse_FireWithInput(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"analysis": "test analysis", "confidence": 0.9, "findings": [], "reasoning": ["test"]}`)
+		synapse := Analyze[TestData]("test", provider)
+
+		ctx := context.Background()
+		input := AnalyzeInput[TestData]{
+			Data:    TestData{Value: 42, Name: "test"},
+			Context: "test context",
+		}
+		result, err := synapse.FireWithInput(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInput failed: %v", err)
+		}
+		if result == "" {
+			t.Error("Expected non-empty result")
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"analysis": "test", "confidence": 0.9, "findings": [], "reasoning": ["test"]}`)
+		synapse := Analyze[TestData]("test", provider,
+			WithCircuitBreaker(5, 30*time.Second))
+
+		ctx := context.Background()
+		input := AnalyzeInput[TestData]{
+			Data:        TestData{Value: 1, Name: "test"},
+			Temperature: 0.3,
+		}
+		result, err := synapse.FireWithInput(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInput with circuit breaker failed: %v", err)
+		}
+		if result == "" {
+			t.Error("Expected result")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"analysis": "test", "confidence": 0.9, "findings": [], "reasoning": ["test"]}`)
+		synapse := Analyze[TestData]("test", provider)
+
+		ctx := context.Background()
+		input := AnalyzeInput[TestData]{
+			Data:  TestData{Value: 42, Name: "test"},
+			Focus: "specific aspect",
+		}
+		result, err := synapse.FireWithInput(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInput with focus failed: %v", err)
+		}
+		if result == "" {
+			t.Error("Expected result")
+		}
+	})
+}
+
+func TestAnalyzeSynapse_FireWithInputDetails(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"analysis": "detailed", "confidence": 0.9, "findings": ["f1"], "reasoning": ["r1"]}`)
+		synapse := Analyze[TestData]("test", provider)
+
+		ctx := context.Background()
+		input := AnalyzeInput[TestData]{
+			Data: TestData{Value: 42, Name: "test"},
+		}
+		response, err := synapse.FireWithInputDetails(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInputDetails failed: %v", err)
+		}
+		if response.Analysis == "" {
+			t.Error("Expected analysis")
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"analysis": "test", "confidence": 0.8, "findings": [], "reasoning": ["test"]}`)
+		synapse := Analyze[TestData]("test", provider, WithRetry(3))
+
+		ctx := context.Background()
+		input := AnalyzeInput[TestData]{
+			Data:        TestData{Value: 1, Name: "test"},
+			Temperature: 0.7,
+		}
+		response, err := synapse.FireWithInputDetails(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInputDetails with retry failed: %v", err)
+		}
+		if response.Analysis == "" {
+			t.Error("Expected analysis")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"analysis": "test", "confidence": 0.9, "findings": [], "reasoning": ["test"]}`)
+		synapse := Analyze[TestData]("test", provider)
+
+		ctx := context.Background()
+		input := AnalyzeInput[TestData]{
+			Data:    TestData{Value: 42, Name: "test"},
+			Context: "test context",
+			Focus:   "specific focus",
+		}
+		response, err := synapse.FireWithInputDetails(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInputDetails with context and focus failed: %v", err)
+		}
+		if response.Analysis == "" {
+			t.Error("Expected analysis")
+		}
+	})
+}
+
+func TestAnalyzeSynapse_mergeInputs(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		synapse := &AnalyzeSynapse[TestData]{
+			defaults: AnalyzeInput[TestData]{
+				Context: "default context",
+			},
+		}
+
+		input := AnalyzeInput[TestData]{
+			Data: TestData{Value: 42, Name: "test"},
+		}
+		merged := synapse.mergeInputs(input)
+
+		if merged.Data.Value != 42 {
+			t.Error("Expected data to be set")
+		}
+		if merged.Context != "default context" {
+			t.Errorf("Expected default context, got '%s'", merged.Context)
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		synapse := &AnalyzeSynapse[TestData]{
+			defaults: AnalyzeInput[TestData]{
+				Context:     "default",
+				Temperature: 0.5,
+			},
+		}
+
+		input := AnalyzeInput[TestData]{
+			Data:        TestData{Value: 1, Name: "test"},
+			Context:     "override",
+			Temperature: 0.7,
+		}
+		merged := synapse.mergeInputs(input)
+
+		if merged.Context != "override" {
+			t.Error("Input should override default context")
+		}
+		if merged.Temperature != 0.7 {
+			t.Error("Input should override default temperature")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		synapse := &AnalyzeSynapse[TestData]{
+			defaults: AnalyzeInput[TestData]{
+				Context: "default",
+				Focus:   "default focus",
+			},
+		}
+
+		input := AnalyzeInput[TestData]{
+			Data:  TestData{Value: 42, Name: "test"},
+			Focus: "override focus",
+		}
+		merged := synapse.mergeInputs(input)
+
+		if merged.Focus != "override focus" {
+			t.Error("Input should override default focus")
+		}
+		if merged.Context != "default" {
+			t.Error("Should keep default context when not overridden")
+		}
+	})
+}
+
+func TestAnalyzeSynapse_buildPrompt(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		synapse := &AnalyzeSynapse[TestData]{
+			what: "data quality",
+		}
+
+		input := AnalyzeInput[TestData]{
+			Data: TestData{Value: 42, Name: "test"},
+		}
+		prompt := synapse.buildPrompt(input)
+
+		if prompt.Task != "Analyze: data quality" {
+			t.Errorf("Expected task prefix, got '%s'", prompt.Task)
+		}
+		if prompt.Input == "" {
+			t.Error("Expected input to be set")
+		}
+		if prompt.Schema == "" {
+			t.Error("Expected schema to be set")
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		synapse := &AnalyzeSynapse[TestData]{
+			what: "test",
+		}
+
+		input := AnalyzeInput[TestData]{
+			Data:    TestData{Value: 1, Name: "test"},
+			Context: "analysis context",
+			Focus:   "specific focus",
+		}
+		prompt := synapse.buildPrompt(input)
+
+		if prompt.Context != "analysis context" {
+			t.Error("Expected context to be set")
+		}
+		if len(prompt.Constraints) == 0 {
+			t.Error("Expected constraints to be set")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		synapse := &AnalyzeSynapse[TestData]{
+			what: "test",
+		}
+
+		input := AnalyzeInput[TestData]{
+			Data: TestData{Value: 42, Name: "test"},
+		}
+		prompt := synapse.buildPrompt(input)
+
+		if err := prompt.Validate(); err != nil {
+			t.Errorf("Built prompt failed validation: %v", err)
+		}
+	})
 }

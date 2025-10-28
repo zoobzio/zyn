@@ -17,7 +17,8 @@ type ExtractionInput struct {
 
 // ExtractionSynapse represents a generic extraction synapse.
 // It extracts structured data of type T from unstructured text.
-type ExtractionSynapse[T any] struct {
+// T must implement Validator to ensure extracted data is valid.
+type ExtractionSynapse[T Validator] struct {
 	what     string
 	schema   string // Pre-computed JSON schema
 	defaults ExtractionInput
@@ -25,8 +26,8 @@ type ExtractionSynapse[T any] struct {
 }
 
 // NewExtraction creates a new extraction synapse bound to a provider.
-// The type parameter T defines the structure to extract.
-func NewExtraction[T any](what string, provider Provider, opts ...Option) *ExtractionSynapse[T] {
+// The type parameter T defines the structure to extract and must implement Validator.
+func NewExtraction[T Validator](what string, provider Provider, opts ...Option) *ExtractionSynapse[T] {
 	// Generate schema once at construction
 	schema := generateJSONSchema[T]()
 
@@ -49,7 +50,7 @@ func NewExtraction[T any](what string, provider Provider, opts ...Option) *Extra
 	}
 
 	// Create service with final pipeline
-	svc := NewService[T](pipeline)
+	svc := NewService[T](pipeline, "extraction", provider)
 
 	return &ExtractionSynapse[T]{
 		what:    what,
@@ -170,7 +171,7 @@ func splitLines(s string) []string {
 }
 
 // Extract creates a new extraction synapse bound to a provider.
-// The type parameter T defines the structure to extract.
+// The type parameter T defines the structure to extract and must implement Validator.
 //
 // Example:
 //
@@ -179,8 +180,15 @@ func splitLines(s string) []string {
 //	    Email string `json:"email"`
 //	}
 //
+//	func (c Contact) Validate() error {
+//	    if c.Email == "" {
+//	        return fmt.Errorf("email required")
+//	    }
+//	    return nil
+//	}
+//
 //	extractor := Extract[Contact]("contact information", provider)
 //	contact, err := extractor.Fire(ctx, "John Doe at john@example.com")
-func Extract[T any](what string, provider Provider, opts ...Option) *ExtractionSynapse[T] {
+func Extract[T Validator](what string, provider Provider, opts ...Option) *ExtractionSynapse[T] {
 	return NewExtraction[T](what, provider, opts...)
 }

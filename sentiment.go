@@ -34,11 +34,48 @@ type SentimentResponse struct {
 	Reasoning  []string          `json:"reasoning"`  // Explanation of analysis
 }
 
+// Validate checks if the response is valid.
+func (r SentimentResponse) Validate() error {
+	if r.Overall == "" {
+		return fmt.Errorf("overall sentiment required but empty")
+	}
+	if r.Confidence < 0 || r.Confidence > 1 {
+		return fmt.Errorf("confidence must be 0-1, got %f", r.Confidence)
+	}
+	if len(r.Reasoning) == 0 {
+		return fmt.Errorf("reasoning required but empty")
+	}
+	// Validate scores
+	if err := r.Scores.Validate(); err != nil {
+		return fmt.Errorf("invalid scores: %w", err)
+	}
+	return nil
+}
+
 // SentimentScores contains detailed sentiment breakdowns.
 type SentimentScores struct {
 	Positive float64 `json:"positive"` // 0.0-1.0 positive sentiment strength
 	Negative float64 `json:"negative"` // 0.0-1.0 negative sentiment strength
 	Neutral  float64 `json:"neutral"`  // 0.0-1.0 neutral sentiment strength
+}
+
+// Validate checks if sentiment scores are valid.
+func (s SentimentScores) Validate() error {
+	if s.Positive < 0 || s.Positive > 1 {
+		return fmt.Errorf("positive score must be 0-1, got %f", s.Positive)
+	}
+	if s.Negative < 0 || s.Negative > 1 {
+		return fmt.Errorf("negative score must be 0-1, got %f", s.Negative)
+	}
+	if s.Neutral < 0 || s.Neutral > 1 {
+		return fmt.Errorf("neutral score must be 0-1, got %f", s.Neutral)
+	}
+	// Allow some tolerance for floating point arithmetic
+	sum := s.Positive + s.Negative + s.Neutral
+	if sum < 0.95 || sum > 1.05 {
+		return fmt.Errorf("sentiment scores must sum to ~1.0, got %f", sum)
+	}
+	return nil
 }
 
 // SentimentSynapse represents a sentiment analysis synapse.
@@ -69,7 +106,7 @@ func NewSentiment(analysisType string, provider Provider, opts ...Option) *Senti
 	}
 
 	// Create service with final pipeline
-	svc := NewService[SentimentResponse](pipeline)
+	svc := NewService[SentimentResponse](pipeline, "sentiment", provider)
 
 	return &SentimentSynapse{
 		analysisType: analysisType,

@@ -24,6 +24,17 @@ type BinaryResponse struct {
 	Reasoning  []string `json:"reasoning"`  // Explanation of decision
 }
 
+// Validate checks if the response is valid.
+func (r BinaryResponse) Validate() error {
+	if r.Confidence < 0 || r.Confidence > 1 {
+		return fmt.Errorf("confidence must be 0-1, got %f", r.Confidence)
+	}
+	if len(r.Reasoning) == 0 {
+		return fmt.Errorf("reasoning required but empty")
+	}
+	return nil
+}
+
 // BinarySynapse represents a binary (yes/no) decision synapse.
 type BinarySynapse struct {
 	question string
@@ -53,7 +64,7 @@ func NewBinary(question string, provider Provider, opts ...Option) *BinarySynaps
 	}
 
 	// Create service with final pipeline
-	svc := NewService[BinaryResponse](pipeline)
+	svc := NewService[BinaryResponse](pipeline, "binary", provider)
 
 	return &BinarySynapse{
 		question: question,

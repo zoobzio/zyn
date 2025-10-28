@@ -2,6 +2,7 @@ package zyn
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/zoobzio/pipz"
 )
@@ -20,6 +21,20 @@ type ClassificationResponse struct {
 	Secondary  string   `json:"secondary"`  // Optional second choice
 	Confidence float64  `json:"confidence"` // Confidence in primary choice
 	Reasoning  []string `json:"reasoning"`  // Explanation of classification
+}
+
+// Validate checks if the response is valid.
+func (r ClassificationResponse) Validate() error {
+	if r.Primary == "" {
+		return fmt.Errorf("primary category required but empty")
+	}
+	if r.Confidence < 0 || r.Confidence > 1 {
+		return fmt.Errorf("confidence must be 0-1, got %f", r.Confidence)
+	}
+	if len(r.Reasoning) == 0 {
+		return fmt.Errorf("reasoning required but empty")
+	}
+	return nil
 }
 
 // ClassificationSynapse represents a multi-class classification synapse.
@@ -51,7 +66,7 @@ func NewClassification(question string, categories []string, provider Provider, 
 	}
 
 	// Create service with final pipeline
-	svc := NewService[ClassificationResponse](pipeline)
+	svc := NewService[ClassificationResponse](pipeline, "classification", provider)
 
 	return &ClassificationSynapse{
 		question:   question,
@@ -104,7 +119,7 @@ func (c *ClassificationSynapse) FireWithInput(ctx context.Context, input Classif
 		temperature = 0.3 // Slightly higher than binary for more nuanced classification
 	}
 
-	// Execute through service
+	// Execute through service (validation happens in Service.Execute)
 	return c.service.Execute(ctx, prompt, temperature)
 }
 

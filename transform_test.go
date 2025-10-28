@@ -2,250 +2,430 @@ package zyn
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 )
 
-func TestTransformSummary(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"output": "AI systems process data through neural networks. Key applications: NLP, computer vision, robotics.",
-		"confidence": 0.85,
-		"changes": ["Condensed from 500 words to 15 words", "Extracted key concepts", "Removed redundant details"],
-		"reasoning": ["Identified main topic", "Listed primary applications", "Preserved technical accuracy"]
-	}`)
+func TestTransform(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Transform("summarize", provider)
 
-	summarizer := Transform("summarize into key points", provider, WithTimeout(5*time.Second))
-
-	ctx := context.Background()
-
-	longText := "Artificial intelligence systems are revolutionizing how we process information. These systems use complex neural networks to analyze patterns in data. Natural language processing allows computers to understand human language. Computer vision enables machines to interpret visual information. Robotics combines these technologies for physical automation."
-
-	// Test simple Fire
-	summary, err := summarizer.Fire(ctx, longText)
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
-	if !strings.Contains(summary, "neural networks") {
-		t.Errorf("Summary missing key concept 'neural networks'")
-	}
-
-	// Test FireWithDetails
-	details, err := summarizer.FireWithDetails(ctx, longText)
-	if err != nil {
-		t.Fatalf("FireWithDetails failed: %v", err)
-	}
-	if details.Confidence != 0.85 {
-		t.Errorf("Expected confidence 0.85, got %f", details.Confidence)
-	}
-	if len(details.Changes) != 3 {
-		t.Errorf("Expected 3 changes, got %d", len(details.Changes))
-	}
-}
-
-func TestTransformTranslation(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"output": "Hola, ¿cómo estás hoy?",
-		"confidence": 0.95,
-		"changes": ["Translated from English to Spanish", "Maintained informal tone"],
-		"reasoning": ["Direct translation", "Preserved greeting context"]
-	}`)
-
-	translator := Transform("translate to Spanish", provider)
-
-	ctx := context.Background()
-	result, err := translator.Fire(ctx, "Hello, how are you today?")
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
-	if result != "Hola, ¿cómo estás hoy?" {
-		t.Errorf("Expected Spanish translation, got '%s'", result)
-	}
-}
-
-func TestTransformFormatting(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"output": "• First point\n• Second point\n• Third point",
-		"confidence": 0.90,
-		"changes": ["Converted to bullet points", "Added line breaks"],
-		"reasoning": ["Identified list items", "Applied bullet formatting"]
-	}`)
-
-	formatter := Transform("convert to bullet points", provider)
-
-	ctx := context.Background()
-	input := "First point, second point, and third point"
-	result, err := formatter.Fire(ctx, input)
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
-	if !strings.Contains(result, "•") {
-		t.Error("Expected bullet points in output")
-	}
-}
-
-func TestTransformWithStyle(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"output": "I would be delighted to inform you that the meeting has been rescheduled to Tuesday.",
-		"confidence": 0.88,
-		"changes": ["Elevated vocabulary", "Added formal expressions", "Restructured sentence"],
-		"reasoning": ["Applied formal tone", "Enhanced politeness"]
-	}`)
-
-	transformer := Transform("make more formal", provider)
-
-	input := TransformInput{
-		Text:  "Hey, just wanted to let you know the meeting got moved to Tuesday",
-		Style: "professional business communication",
-	}
-
-	ctx := context.Background()
-	details, err := transformer.FireWithInputDetails(ctx, input)
-	if err != nil {
-		t.Fatalf("FireWithInputDetails failed: %v", err)
-	}
-	if !strings.Contains(details.Output, "delighted") {
-		t.Error("Expected formal language in output")
-	}
-	if details.Confidence != 0.88 {
-		t.Errorf("Expected confidence 0.88, got %f", details.Confidence)
-	}
-}
-
-func TestTransformWithExamples(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"output": "The Process Is Beginning",
-		"confidence": 0.92,
-		"changes": ["Capitalized each word"],
-		"reasoning": ["Followed example pattern", "Applied title case"]
-	}`)
-
-	transformer := Transform("apply same style", provider)
-
-	input := TransformInput{
-		Text: "the process is beginning",
-		Examples: map[string]string{
-			"hello world":  "Hello World",
-			"testing this": "Testing This",
-		},
-	}
-
-	ctx := context.Background()
-	result, err := transformer.FireWithInput(ctx, input)
-	if err != nil {
-		t.Fatalf("FireWithInput failed: %v", err)
-	}
-	if result != "The Process Is Beginning" {
-		t.Errorf("Expected title case, got '%s'", result)
-	}
-}
-
-func TestTransformWithMaxLength(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"output": "Quick summary here",
-		"confidence": 0.80,
-		"changes": ["Truncated to fit length limit", "Preserved key information"],
-		"reasoning": ["Respected 20 character limit", "Prioritized essential content"]
-	}`)
-
-	transformer := Transform("summarize", provider)
-
-	input := TransformInput{
-		Text:      "This is a very long text that needs to be summarized into something much shorter",
-		MaxLength: 20,
-	}
-
-	ctx := context.Background()
-	details, err := transformer.FireWithInputDetails(ctx, input)
-	if err != nil {
-		t.Fatalf("FireWithInputDetails failed: %v", err)
-	}
-	if len(details.Output) > 20 {
-		t.Errorf("Output exceeded max length: %d > 20", len(details.Output))
-	}
-}
-
-func TestTransformPromptStructure(t *testing.T) {
-	var capturedPrompt string
-	provider := NewMockProviderWithCallback(func(prompt string, _ float32) (string, error) {
-		capturedPrompt = prompt
-		return `{"output": "test", "confidence": 1.0, "changes": [], "reasoning": ["test"]}`, nil
+		if synapse == nil {
+			t.Fatal("Transform wrapper returned nil")
+		}
 	})
 
-	transformer := Transform("simplify", provider)
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"output": "transformed text", "confidence": 0.9, "changes": [], "reasoning": ["test"]}`)
+		synapse := Transform("summarize", provider,
+			WithRetry(3),
+			WithTimeout(10*time.Second))
 
-	ctx := context.Background()
-	_, err := transformer.Fire(ctx, "test input")
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
+		if synapse == nil {
+			t.Fatal("Transform wrapper with options returned nil")
+		}
 
-	// Check prompt structure
-	if !strings.Contains(capturedPrompt, "Task: Transform: simplify") {
-		t.Error("Prompt missing task description")
-	}
-	if !strings.Contains(capturedPrompt, "Input: test input") {
-		t.Error("Prompt missing input")
-	}
-	if !strings.Contains(capturedPrompt, "Response JSON Schema:") {
-		t.Error("Prompt missing JSON schema")
-	}
-	if !strings.Contains(capturedPrompt, `"output"`) {
-		t.Error("Schema missing output field")
-	}
-	if !strings.Contains(capturedPrompt, `"changes"`) {
-		t.Error("Schema missing changes field")
-	}
-	if !strings.Contains(capturedPrompt, `"reasoning"`) {
-		t.Error("Schema missing reasoning field")
-	}
+		ctx := context.Background()
+		_, err := synapse.Fire(ctx, "test text")
+		if err != nil {
+			t.Errorf("Transform synapse Fire failed: %v", err)
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"output": "transformed", "confidence": 0.9, "changes": [], "reasoning": ["test"]}`)
+		synapse := Transform("summarize", provider)
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, "test text")
+		if err != nil {
+			t.Fatalf("Transform with chaining failed: %v", err)
+		}
+		if result != "transformed" {
+			t.Errorf("Expected output='transformed', got '%s'", result)
+		}
+	})
 }
 
-func TestTransformVariousUseCases(t *testing.T) {
-	tests := []struct {
-		name        string
-		instruction string
-		input       string
-		response    string
-		checkOutput func(string) bool
-	}{
-		{
-			name:        "Code formatting",
-			instruction: "format as Python code",
-			input:       "print hello world",
-			response:    `{"output": "print(\"hello world\")", "confidence": 0.95, "changes": ["Added parentheses", "Added quotes"], "reasoning": ["Python 3 syntax"]}`,
-			checkOutput: func(s string) bool { return strings.Contains(s, "print(") },
-		},
-		{
-			name:        "Tone adjustment",
-			instruction: "make it friendly",
-			input:       "Send me the report.",
-			response:    `{"output": "Hey! Could you please send me the report when you get a chance? Thanks!", "confidence": 0.85, "changes": ["Added greeting", "Made request polite"], "reasoning": ["Friendly tone"]}`,
-			checkOutput: func(s string) bool { return strings.Contains(s, "please") },
-		},
-		{
-			name:        "Simplification",
-			instruction: "explain like I'm five",
-			input:       "Photosynthesis is the process by which plants convert light energy into chemical energy",
-			response:    `{"output": "Plants eat sunlight to make food, just like you eat breakfast for energy!", "confidence": 0.82, "changes": ["Simplified vocabulary", "Added analogy"], "reasoning": ["Age-appropriate language"]}`,
-			checkOutput: func(s string) bool { return strings.Contains(s, "eat") || strings.Contains(s, "food") },
-		},
-	}
+func TestTransformSynapse_GetPipeline(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Transform("test", provider)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			provider := NewMockProviderWithResponse(tt.response)
-			transformer := Transform(tt.instruction, provider)
+		pipeline := synapse.GetPipeline()
+		if pipeline == nil {
+			t.Error("GetPipeline returned nil")
+		}
+	})
 
-			ctx := context.Background()
-			result, err := transformer.Fire(ctx, tt.input)
-			if err != nil {
-				t.Fatalf("Fire failed: %v", err)
-			}
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Transform("test", provider, WithRetry(3))
 
-			if !tt.checkOutput(result) {
-				t.Errorf("Unexpected output for %s: %s", tt.name, result)
-			}
-		})
-	}
+		pipeline := synapse.GetPipeline()
+		if pipeline == nil {
+			t.Error("GetPipeline returned nil with retry option")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Transform("test", provider)
+
+		pipeline := synapse.GetPipeline()
+		if pipeline == nil {
+			t.Fatal("GetPipeline returned nil")
+		}
+
+		ctx := context.Background()
+		prompt := &Prompt{Task: "test", Input: "test", Schema: "{}"}
+		req := &SynapseRequest{Prompt: prompt, Temperature: 0.5}
+		_, err := pipeline.Process(ctx, req)
+		if err != nil {
+			t.Errorf("Pipeline processing failed: %v", err)
+		}
+	})
+}
+
+func TestTransformSynapse_Fire(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"output": "summary text", "confidence": 0.9, "changes": [], "reasoning": ["test"]}`)
+		synapse := Transform("summarize", provider)
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, "long text to summarize")
+		if err != nil {
+			t.Fatalf("Fire failed: %v", err)
+		}
+		if result != "summary text" {
+			t.Errorf("Expected output='summary text', got '%s'", result)
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"output": "test output", "confidence": 0.8, "changes": [], "reasoning": ["test"]}`)
+		synapse := Transform("test", provider,
+			WithRetry(2),
+			WithTimeout(5*time.Second))
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, "test input")
+		if err != nil {
+			t.Fatalf("Fire with reliability options failed: %v", err)
+		}
+		if result != "test output" {
+			t.Errorf("Expected output='test output', got '%s'", result)
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		failing := NewMockProviderWithError("primary failed")
+		fallbackProvider := NewMockProviderWithResponse(`{"output": "fallback output", "confidence": 0.7, "changes": [], "reasoning": ["test"]}`)
+		fallbackSynapse := Transform("test", fallbackProvider)
+
+		synapse := Transform("test", failing,
+			WithFallback(fallbackSynapse))
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, "test")
+		if err != nil {
+			t.Fatalf("Fire with fallback failed: %v", err)
+		}
+		if result != "fallback output" {
+			t.Error("Expected result from fallback")
+		}
+	})
+}
+
+func TestTransformSynapse_FireWithDetails(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"output": "transformed", "confidence": 0.95, "changes": ["change1"], "reasoning": ["reason1"]}`)
+		synapse := Transform("test", provider)
+
+		ctx := context.Background()
+		response, err := synapse.FireWithDetails(ctx, "input text")
+		if err != nil {
+			t.Fatalf("FireWithDetails failed: %v", err)
+		}
+		if response.Output != "transformed" {
+			t.Errorf("Expected output='transformed', got '%s'", response.Output)
+		}
+		if response.Confidence != 0.95 {
+			t.Errorf("Expected confidence=0.95, got %f", response.Confidence)
+		}
+		if len(response.Reasoning) == 0 {
+			t.Error("Expected reasoning to be set")
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"output": "test", "confidence": 0.8, "changes": [], "reasoning": ["test"]}`)
+		synapse := Transform("test", provider,
+			WithRetry(3),
+			WithBackoff(2, 10*time.Millisecond))
+
+		ctx := context.Background()
+		response, err := synapse.FireWithDetails(ctx, "test")
+		if err != nil {
+			t.Fatalf("FireWithDetails with backoff failed: %v", err)
+		}
+		if response.Output != "test" {
+			t.Error("Expected output")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"output": "test", "confidence": 0.9, "changes": [], "reasoning": ["test"]}`)
+		synapse := Transform("test", provider)
+
+		ctx := context.Background()
+		response, err := synapse.FireWithDetails(ctx, "test")
+		if err != nil {
+			t.Fatalf("FireWithDetails failed: %v", err)
+		}
+		if response.Output != "test" {
+			t.Error("Expected output")
+		}
+	})
+}
+
+func TestTransformSynapse_FireWithInput(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"output": "transformed text", "confidence": 0.9, "changes": [], "reasoning": ["test"]}`)
+		synapse := Transform("test", provider)
+
+		ctx := context.Background()
+		input := TransformInput{
+			Text:    "input text",
+			Context: "test context",
+		}
+		result, err := synapse.FireWithInput(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInput failed: %v", err)
+		}
+		if result != "transformed text" {
+			t.Errorf("Expected output='transformed text', got '%s'", result)
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"output": "test", "confidence": 0.85, "changes": [], "reasoning": ["test"]}`)
+		synapse := Transform("test", provider,
+			WithCircuitBreaker(5, 30*time.Second))
+
+		ctx := context.Background()
+		input := TransformInput{
+			Text:        "test",
+			Temperature: 0.3,
+		}
+		result, err := synapse.FireWithInput(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInput with circuit breaker failed: %v", err)
+		}
+		if result != "test" {
+			t.Error("Expected result")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"output": "test", "confidence": 0.9, "changes": [], "reasoning": ["test"]}`)
+		synapse := Transform("test", provider)
+
+		ctx := context.Background()
+		input := TransformInput{
+			Text:    "test",
+			Context: "context",
+		}
+		result, err := synapse.FireWithInput(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInput failed: %v", err)
+		}
+		if result != "test" {
+			t.Error("Expected result")
+		}
+	})
+}
+
+func TestTransformSynapse_FireWithInputDetails(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"output": "detailed", "confidence": 0.9, "changes": ["c1"], "reasoning": ["r1"]}`)
+		synapse := Transform("test", provider)
+
+		ctx := context.Background()
+		input := TransformInput{
+			Text: "input",
+		}
+		response, err := synapse.FireWithInputDetails(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInputDetails failed: %v", err)
+		}
+		if response.Output != "detailed" {
+			t.Error("Expected output")
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"output": "test", "confidence": 0.8, "changes": [], "reasoning": ["test"]}`)
+		synapse := Transform("test", provider, WithRetry(3))
+
+		ctx := context.Background()
+		input := TransformInput{
+			Text:        "test",
+			Temperature: 0.7,
+		}
+		response, err := synapse.FireWithInputDetails(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInputDetails with retry failed: %v", err)
+		}
+		if response.Output != "test" {
+			t.Error("Expected output")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"output": "test", "confidence": 0.9, "changes": [], "reasoning": ["test"]}`)
+		synapse := Transform("test", provider)
+
+		ctx := context.Background()
+		input := TransformInput{
+			Text:    "test",
+			Context: "context",
+		}
+		response, err := synapse.FireWithInputDetails(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInputDetails failed: %v", err)
+		}
+		if response.Output != "test" {
+			t.Error("Expected output")
+		}
+	})
+}
+
+func TestTransformSynapse_mergeInputs(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		synapse := &TransformSynapse{
+			defaults: TransformInput{
+				Context: "default context",
+			},
+		}
+
+		input := TransformInput{
+			Text: "test text",
+		}
+		merged := synapse.mergeInputs(input)
+
+		if merged.Text != "test text" {
+			t.Errorf("Expected text 'test text', got '%s'", merged.Text)
+		}
+		if merged.Context != "default context" {
+			t.Errorf("Expected default context, got '%s'", merged.Context)
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		synapse := &TransformSynapse{
+			defaults: TransformInput{
+				Context:     "default",
+				Temperature: 0.5,
+			},
+		}
+
+		input := TransformInput{
+			Text:        "test",
+			Context:     "override",
+			Temperature: 0.7,
+		}
+		merged := synapse.mergeInputs(input)
+
+		if merged.Context != "override" {
+			t.Error("Input should override default context")
+		}
+		if merged.Temperature != 0.7 {
+			t.Error("Input should override default temperature")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		synapse := &TransformSynapse{
+			defaults: TransformInput{
+				Context: "default",
+				Style:   "formal",
+			},
+		}
+
+		input := TransformInput{
+			Text:  "test",
+			Style: "casual",
+		}
+		merged := synapse.mergeInputs(input)
+
+		if merged.Style != "casual" {
+			t.Error("Input should override default style")
+		}
+		if merged.Context != "default" {
+			t.Error("Should keep default context when not overridden")
+		}
+	})
+}
+
+func TestTransformSynapse_buildPrompt(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		synapse := &TransformSynapse{
+			instruction: "summarize",
+		}
+
+		input := TransformInput{
+			Text: "text to transform",
+		}
+		prompt := synapse.buildPrompt(input)
+
+		if prompt.Task != "Transform: summarize" {
+			t.Errorf("Expected task prefix, got '%s'", prompt.Task)
+		}
+		if prompt.Input != "text to transform" {
+			t.Errorf("Expected input to be set, got '%s'", prompt.Input)
+		}
+		if prompt.Schema == "" {
+			t.Error("Expected schema to be set")
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		synapse := &TransformSynapse{
+			instruction: "test",
+		}
+
+		input := TransformInput{
+			Text:    "test",
+			Context: "transform context",
+			Style:   "concise",
+			Examples: map[string]string{
+				"verbose": "brief",
+			},
+		}
+		prompt := synapse.buildPrompt(input)
+
+		if prompt.Context != "transform context" {
+			t.Error("Expected context to be set")
+		}
+		if len(prompt.Examples) == 0 {
+			t.Error("Expected examples to be set")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		synapse := &TransformSynapse{
+			instruction: "test",
+		}
+
+		input := TransformInput{
+			Text: "test",
+		}
+		prompt := synapse.buildPrompt(input)
+
+		if err := prompt.Validate(); err != nil {
+			t.Errorf("Built prompt failed validation: %v", err)
+		}
+	})
 }

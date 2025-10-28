@@ -177,3 +177,15 @@ func TestProviderErrorHandling(t *testing.T) {
 		})
 	}
 }
+
+func TestProviderName(t *testing.T) {
+	provider := New(Config{
+		APIKey: "test-key",
+		Model:  "gpt-4",
+	})
+
+	name := provider.Name()
+	if name != "openai" {
+		t.Errorf("Expected 'openai', got '%s'", name)
+	}
+}

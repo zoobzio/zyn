@@ -7,6 +7,8 @@ import (
 	"github.com/zoobzio/sentinel"
 )
 
+const jsonTypeObject = "object"
+
 // generateJSONSchema creates a proper JSON Schema from a Go type using sentinel.
 func generateJSONSchema[T any]() string {
 	// Use sentinel to extract metadata for struct types
@@ -14,7 +16,7 @@ func generateJSONSchema[T any]() string {
 
 	// Build JSON Schema object
 	schema := map[string]interface{}{
-		"type":                 "object",
+		"type":                 jsonTypeObject,
 		"properties":           buildProperties(metadata.Fields),
 		"required":             buildRequiredFields(metadata.Fields),
 		"additionalProperties": false,
@@ -111,9 +113,9 @@ func goTypeToJSONType(goType string) string {
 	case strings.HasPrefix(goType, "[]"):
 		return "array"
 	case strings.HasPrefix(goType, "map["):
-		return "object"
+		return jsonTypeObject
 	default:
 		// For custom types, default to object
-		return "object"
+		return jsonTypeObject
 	}
 }

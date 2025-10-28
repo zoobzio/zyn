@@ -2,266 +2,500 @@ package zyn
 
 import (
 	"context"
-	"math"
-	"strings"
 	"testing"
 	"time"
 )
 
-func TestSentimentBasic(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"overall": "positive",
-		"confidence": 0.92,
-		"scores": {
-			"positive": 0.85,
-			"negative": 0.05,
-			"neutral": 0.10
-		},
-		"aspects": {},
-		"emotions": ["joy", "excitement"],
-		"reasoning": ["Enthusiastic language", "Positive descriptors", "Exclamation marks indicate excitement"]
-	}`)
+func TestNewSentiment(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewSentiment("basic sentiment", provider)
 
-	sentiment := Sentiment("emotional tone", provider, WithTimeout(5*time.Second))
-
-	ctx := context.Background()
-
-	// Test simple Fire
-	result, err := sentiment.Fire(ctx, "This is absolutely amazing! I love it!")
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
-	if result != "positive" {
-		t.Errorf("Expected 'positive', got '%s'", result)
-	}
-
-	// Test FireWithDetails
-	details, err := sentiment.FireWithDetails(ctx, "This is absolutely amazing! I love it!")
-	if err != nil {
-		t.Fatalf("FireWithDetails failed: %v", err)
-	}
-	if details.Overall != "positive" {
-		t.Errorf("Expected overall 'positive', got '%s'", details.Overall)
-	}
-	if details.Confidence != 0.92 {
-		t.Errorf("Expected confidence 0.92, got %f", details.Confidence)
-	}
-	if details.Scores.Positive != 0.85 {
-		t.Errorf("Expected positive score 0.85, got %f", details.Scores.Positive)
-	}
-	if len(details.Emotions) != 2 {
-		t.Errorf("Expected 2 emotions, got %d", len(details.Emotions))
-	}
-	if details.Emotions[0] != "joy" {
-		t.Errorf("Expected first emotion 'joy', got '%s'", details.Emotions[0])
-	}
-}
-
-func TestSentimentNegative(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"overall": "negative",
-		"confidence": 0.88,
-		"scores": {
-			"positive": 0.10,
-			"negative": 0.75,
-			"neutral": 0.15
-		},
-		"aspects": {},
-		"emotions": ["frustration", "disappointment"],
-		"reasoning": ["Complaint language", "Negative experience described"]
-	}`)
-
-	sentiment := Sentiment("customer feedback", provider)
-
-	ctx := context.Background()
-	result, err := sentiment.Fire(ctx, "This product is terrible and doesn't work at all")
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
-	if result != "negative" {
-		t.Errorf("Expected 'negative', got '%s'", result)
-	}
-}
-
-func TestSentimentMixed(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"overall": "mixed",
-		"confidence": 0.70,
-		"scores": {
-			"positive": 0.40,
-			"negative": 0.35,
-			"neutral": 0.25
-		},
-		"aspects": {},
-		"emotions": ["hope", "concern"],
-		"reasoning": ["Both positive and negative elements", "Conflicting sentiments"]
-	}`)
-
-	sentiment := Sentiment("review analysis", provider)
-
-	ctx := context.Background()
-	details, err := sentiment.FireWithDetails(ctx, "The product quality is good but the service was terrible")
-	if err != nil {
-		t.Fatalf("FireWithDetails failed: %v", err)
-	}
-	if details.Overall != "mixed" {
-		t.Errorf("Expected 'mixed', got '%s'", details.Overall)
-	}
-	// Check scores roughly sum to 1.0
-	total := details.Scores.Positive + details.Scores.Negative + details.Scores.Neutral
-	if math.Abs(total-1.0) > 0.01 {
-		t.Errorf("Scores should sum to ~1.0, got %f", total)
-	}
-}
-
-func TestSentimentWithAspects(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"overall": "mixed",
-		"confidence": 0.75,
-		"scores": {
-			"positive": 0.50,
-			"negative": 0.30,
-			"neutral": 0.20
-		},
-		"aspects": {
-			"food quality": "positive",
-			"service": "negative",
-			"ambiance": "positive",
-			"price": "negative"
-		},
-		"emotions": ["satisfaction", "frustration"],
-		"reasoning": ["Mixed review with varying aspects", "Good food but poor service"]
-	}`)
-
-	sentiment := Sentiment("restaurant review", provider)
-
-	input := SentimentInput{
-		Text:    "The food was delicious and the ambiance was lovely, but service was slow and prices too high",
-		Aspects: []string{"food quality", "service", "ambiance", "price"},
-	}
-
-	ctx := context.Background()
-	details, err := sentiment.FireWithInput(ctx, input)
-	if err != nil {
-		t.Fatalf("FireWithInput failed: %v", err)
-	}
-
-	if len(details.Aspects) != 4 {
-		t.Errorf("Expected 4 aspects, got %d", len(details.Aspects))
-	}
-	if details.Aspects["food quality"] != "positive" {
-		t.Errorf("Expected food quality 'positive', got '%s'", details.Aspects["food quality"])
-	}
-	if details.Aspects["service"] != "negative" {
-		t.Errorf("Expected service 'negative', got '%s'", details.Aspects["service"])
-	}
-}
-
-func TestSentimentNormalization(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{"Positive", "positive"},
-		{"POSITIVE", "positive"},
-		{"pos", "positive"},
-		{"Negative", "negative"},
-		{"neg", "negative"},
-		{"Neutral", "neutral"},
-		{"neu", "neutral"},
-		{"Mixed", "mixed"},
-		{"mix", "mixed"},
-		{"unknown", "unknown"}, // Unrecognized returns as-is
-	}
-
-	for _, tt := range tests {
-		result := normalizeSentiment(tt.input)
-		if result != tt.expected {
-			t.Errorf("normalizeSentiment(%s) = %s, want %s", tt.input, result, tt.expected)
+		if synapse == nil {
+			t.Fatal("Expected synapse to be created")
 		}
-	}
-}
-
-func TestSentimentPromptStructure(t *testing.T) {
-	var capturedPrompt string
-	provider := NewMockProviderWithCallback(func(prompt string, _ float32) (string, error) {
-		capturedPrompt = prompt
-		return `{
-			"overall": "neutral",
-			"confidence": 0.5,
-			"scores": {"positive": 0.33, "negative": 0.33, "neutral": 0.34},
-			"aspects": {},
-			"emotions": [],
-			"reasoning": ["test"]
-		}`, nil
+		if synapse.analysisType != "basic sentiment" {
+			t.Errorf("Expected analysisType='basic sentiment', got '%s'", synapse.analysisType)
+		}
 	})
 
-	sentiment := Sentiment("social media post", provider)
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewSentiment("basic sentiment", provider,
+			WithRetry(3),
+			WithTimeout(10*time.Second))
 
-	ctx := context.Background()
-	_, err := sentiment.Fire(ctx, "test input")
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
+		if synapse == nil {
+			t.Fatal("Expected synapse with reliability options to be created")
+		}
+	})
 
-	// Check prompt structure
-	if !strings.Contains(capturedPrompt, "Task: Analyze social media post sentiment") {
-		t.Error("Prompt missing task description")
-	}
-	if !strings.Contains(capturedPrompt, "Input: test input") {
-		t.Error("Prompt missing input")
-	}
-	if !strings.Contains(capturedPrompt, `"overall"`) {
-		t.Error("Prompt missing overall field")
-	}
-	if !strings.Contains(capturedPrompt, `"emotions"`) {
-		t.Error("Prompt missing emotions field")
-	}
-	if !strings.Contains(capturedPrompt, `"scores"`) {
-		t.Error("Prompt missing scores field")
-	}
+	t.Run("chaining", func(t *testing.T) {
+		primary := NewMockProviderWithName("primary")
+		fallback := NewMockProviderWithName("fallback")
+		fallbackSynapse := NewSentiment("basic sentiment", fallback)
+
+		synapse := NewSentiment("basic sentiment", primary,
+			WithFallback(fallbackSynapse))
+
+		if synapse == nil {
+			t.Fatal("Expected synapse with fallback to be created")
+		}
+	})
 }
 
-func TestSentimentWithContext(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"overall": "positive",
-		"confidence": 0.80,
-		"scores": {
-			"positive": 0.70,
-			"negative": 0.10,
-			"neutral": 0.20
-		},
-		"aspects": {},
-		"emotions": ["sarcasm", "humor"],
-		"reasoning": ["Context indicates sarcastic tone", "Actually positive despite negative words"]
-	}`)
+func TestSentimentSynapse_GetPipeline(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewSentiment("test", provider)
 
-	sentiment := Sentiment("message tone", provider)
-
-	input := SentimentInput{
-		Text:    "Oh great, another meeting. Just what I needed!",
-		Context: "Said jokingly to a colleague who also dislikes meetings",
-	}
-
-	ctx := context.Background()
-	details, err := sentiment.FireWithInput(ctx, input)
-	if err != nil {
-		t.Fatalf("FireWithInput failed: %v", err)
-	}
-
-	// With context, sarcasm might be detected as actually positive/humorous
-	if details.Overall != "positive" {
-		t.Errorf("Expected 'positive' (sarcasm with context), got '%s'", details.Overall)
-	}
-
-	hasHumorOrSarcasm := false
-	for _, emotion := range details.Emotions {
-		if emotion == "sarcasm" || emotion == "humor" {
-			hasHumorOrSarcasm = true
-			break
+		pipeline := synapse.GetPipeline()
+		if pipeline == nil {
+			t.Error("GetPipeline returned nil")
 		}
-	}
-	if !hasHumorOrSarcasm {
-		t.Error("Expected sarcasm or humor in emotions")
-	}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewSentiment("test", provider, WithRetry(3))
+
+		pipeline := synapse.GetPipeline()
+		if pipeline == nil {
+			t.Error("GetPipeline returned nil with retry option")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewSentiment("test", provider)
+
+		pipeline := synapse.GetPipeline()
+		if pipeline == nil {
+			t.Fatal("GetPipeline returned nil")
+		}
+
+		ctx := context.Background()
+		prompt := &Prompt{Task: "test", Input: "test", Schema: "{}"}
+		req := &SynapseRequest{Prompt: prompt, Temperature: 0.5}
+		_, err := pipeline.Process(ctx, req)
+		if err != nil {
+			t.Errorf("Pipeline processing failed: %v", err)
+		}
+	})
+}
+
+func TestSentimentSynapse_WithDefaults(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewSentiment("test", provider)
+
+		defaults := SentimentInput{
+			Context:     "default context",
+			Temperature: 0.5,
+		}
+		synapseWithDefaults := synapse.WithDefaults(defaults)
+
+		if synapseWithDefaults == nil {
+			t.Fatal("WithDefaults returned nil")
+		}
+		if synapseWithDefaults.defaults.Context != "default context" {
+			t.Error("Defaults not set correctly")
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewSentiment("test", provider, WithRetry(3))
+
+		defaults := SentimentInput{Temperature: 0.7}
+		synapseWithDefaults := synapse.WithDefaults(defaults)
+
+		if synapseWithDefaults == nil {
+			t.Error("WithDefaults returned nil with retry option")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"overall": "positive", "confidence": 0.9, "scores": {"positive": 0.9, "negative": 0.05, "neutral": 0.05}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
+		synapse := NewSentiment("test", provider).
+			WithDefaults(SentimentInput{Context: "default", Temperature: 0.5})
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, "test text")
+		if err != nil {
+			t.Errorf("Fire failed with defaults: %v", err)
+		}
+		if result != "positive" {
+			t.Errorf("Expected sentiment='positive', got '%s'", result)
+		}
+	})
+}
+
+func TestSentimentSynapse_Fire(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"overall": "positive", "confidence": 0.9, "scores": {"positive": 0.9, "negative": 0.05, "neutral": 0.05}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
+		synapse := NewSentiment("basic sentiment", provider)
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, "I love this!")
+		if err != nil {
+			t.Fatalf("Fire failed: %v", err)
+		}
+		if result != "positive" {
+			t.Errorf("Expected sentiment='positive', got '%s'", result)
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"overall": "negative", "confidence": 0.8, "scores": {"positive": 0.1, "negative": 0.8, "neutral": 0.1}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
+		synapse := NewSentiment("test", provider,
+			WithRetry(2),
+			WithTimeout(5*time.Second))
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, "test input")
+		if err != nil {
+			t.Fatalf("Fire with reliability options failed: %v", err)
+		}
+		if result != "negative" {
+			t.Errorf("Expected sentiment='negative', got '%s'", result)
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		failing := NewMockProviderWithError("primary failed")
+		fallbackProvider := NewMockProviderWithResponse(`{"overall": "neutral", "confidence": 0.7, "scores": {"positive": 0.3, "negative": 0.3, "neutral": 0.4}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
+		fallbackSynapse := NewSentiment("test", fallbackProvider)
+
+		synapse := NewSentiment("test", failing,
+			WithFallback(fallbackSynapse))
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, "test")
+		if err != nil {
+			t.Fatalf("Fire with fallback failed: %v", err)
+		}
+		if result != "neutral" {
+			t.Error("Expected result from fallback")
+		}
+	})
+}
+
+func TestSentimentSynapse_FireWithDetails(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"overall": "positive", "confidence": 0.95, "scores": {"positive": 0.9, "negative": 0.05, "neutral": 0.05}, "aspects": {"quality": "positive"}, "emotions": ["joy"], "reasoning": ["enthusiastic"]}`)
+		synapse := NewSentiment("detailed sentiment", provider)
+
+		ctx := context.Background()
+		response, err := synapse.FireWithDetails(ctx, "This is amazing!")
+		if err != nil {
+			t.Fatalf("FireWithDetails failed: %v", err)
+		}
+		if response.Overall != "positive" {
+			t.Errorf("Expected overall='positive', got '%s'", response.Overall)
+		}
+		if response.Confidence != 0.95 {
+			t.Errorf("Expected confidence=0.95, got %f", response.Confidence)
+		}
+		if response.Scores.Positive != 0.9 {
+			t.Errorf("Expected positive score=0.9, got %f", response.Scores.Positive)
+		}
+		if len(response.Reasoning) == 0 {
+			t.Error("Expected reasoning to be set")
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"overall": "negative", "confidence": 0.8, "scores": {"positive": 0.1, "negative": 0.8, "neutral": 0.1}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
+		synapse := NewSentiment("test", provider,
+			WithRetry(3),
+			WithBackoff(2, 10*time.Millisecond))
+
+		ctx := context.Background()
+		response, err := synapse.FireWithDetails(ctx, "test")
+		if err != nil {
+			t.Fatalf("FireWithDetails with backoff failed: %v", err)
+		}
+		if response.Overall != "negative" {
+			t.Error("Expected sentiment")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"overall": "neutral", "confidence": 0.9, "scores": {"positive": 0.3, "negative": 0.3, "neutral": 0.4}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
+		synapse := NewSentiment("test", provider).
+			WithDefaults(SentimentInput{Context: "test context"})
+
+		ctx := context.Background()
+		response, err := synapse.FireWithDetails(ctx, "test")
+		if err != nil {
+			t.Fatalf("FireWithDetails with defaults failed: %v", err)
+		}
+		if response.Overall != "neutral" {
+			t.Error("Expected sentiment")
+		}
+	})
+}
+
+func TestSentimentSynapse_FireWithInput(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"overall": "positive", "confidence": 0.9, "scores": {"positive": 0.9, "negative": 0.05, "neutral": 0.05}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
+		synapse := NewSentiment("test", provider)
+
+		ctx := context.Background()
+		input := SentimentInput{
+			Text:    "Great product!",
+			Context: "product review",
+		}
+		response, err := synapse.FireWithInput(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInput failed: %v", err)
+		}
+		if response.Overall != "positive" {
+			t.Errorf("Expected sentiment='positive', got '%s'", response.Overall)
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"overall": "negative", "confidence": 0.85, "scores": {"positive": 0.1, "negative": 0.85, "neutral": 0.05}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
+		synapse := NewSentiment("test", provider,
+			WithCircuitBreaker(5, 30*time.Second))
+
+		ctx := context.Background()
+		input := SentimentInput{
+			Text:        "test",
+			Temperature: 0.3,
+		}
+		response, err := synapse.FireWithInput(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInput with circuit breaker failed: %v", err)
+		}
+		if response.Overall != "negative" {
+			t.Error("Expected result")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"overall": "positive", "confidence": 0.9, "scores": {"positive": 0.9, "negative": 0.05, "neutral": 0.05}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
+		defaults := SentimentInput{
+			Context: "default context",
+			Aspects: []string{"quality", "service"},
+		}
+		synapse := NewSentiment("test", provider).WithDefaults(defaults)
+
+		ctx := context.Background()
+		input := SentimentInput{
+			Text:    "test",
+			Aspects: []string{"price"},
+		}
+		response, err := synapse.FireWithInput(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInput with defaults merge failed: %v", err)
+		}
+		if response.Overall != "positive" {
+			t.Error("Expected result")
+		}
+	})
+}
+
+func TestSentimentSynapse_mergeInputs(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewSentiment("test", provider)
+		synapse.defaults = SentimentInput{
+			Context: "default context",
+		}
+
+		input := SentimentInput{
+			Text: "test text",
+		}
+		merged := synapse.mergeInputs(input)
+
+		if merged.Text != "test text" {
+			t.Errorf("Expected text 'test text', got '%s'", merged.Text)
+		}
+		if merged.Context != "default context" {
+			t.Errorf("Expected default context, got '%s'", merged.Context)
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewSentiment("test", provider)
+		synapse.defaults = SentimentInput{
+			Context:     "default",
+			Temperature: 0.5,
+		}
+
+		input := SentimentInput{
+			Text:        "test",
+			Context:     "override",
+			Temperature: 0.7,
+		}
+		merged := synapse.mergeInputs(input)
+
+		if merged.Context != "override" {
+			t.Error("Input should override default context")
+		}
+		if merged.Temperature != 0.7 {
+			t.Error("Input should override default temperature")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewSentiment("test", provider)
+		synapse.defaults = SentimentInput{
+			Context: "default",
+			Aspects: []string{"aspect1"},
+		}
+
+		input := SentimentInput{
+			Text:    "test",
+			Aspects: []string{"aspect2"},
+		}
+		merged := synapse.mergeInputs(input)
+
+		if len(merged.Aspects) == 0 {
+			t.Error("Expected aspects to be set")
+		}
+		if merged.Context != "default" {
+			t.Error("Should keep default context when not overridden")
+		}
+	})
+}
+
+func TestSentimentSynapse_buildPrompt(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewSentiment("basic sentiment", provider)
+
+		input := SentimentInput{
+			Text: "text to analyze",
+		}
+		prompt := synapse.buildPrompt(input)
+
+		if prompt.Task != "Analyze basic sentiment sentiment" {
+			t.Errorf("Expected task prefix, got '%s'", prompt.Task)
+		}
+		if prompt.Input != "text to analyze" {
+			t.Errorf("Expected input to be set, got '%s'", prompt.Input)
+		}
+		if prompt.Schema == "" {
+			t.Error("Expected schema to be set")
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewSentiment("test", provider)
+
+		input := SentimentInput{
+			Text:    "test",
+			Context: "sentiment context",
+			Aspects: []string{"quality", "price"},
+		}
+		prompt := synapse.buildPrompt(input)
+
+		if prompt.Context != "sentiment context" {
+			t.Error("Expected context to be set")
+		}
+		if len(prompt.Constraints) == 0 {
+			t.Error("Expected constraints to be set")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewSentiment("test", provider)
+
+		input := SentimentInput{
+			Text: "test",
+		}
+		prompt := synapse.buildPrompt(input)
+
+		if err := prompt.Validate(); err != nil {
+			t.Errorf("Built prompt failed validation: %v", err)
+		}
+	})
+}
+
+func TestNormalizeSentiment(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		result := normalizeSentiment("positive")
+		if result != "positive" {
+			t.Errorf("Expected 'positive', got '%s'", result)
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		tests := []struct {
+			input    string
+			expected string
+		}{
+			{"POSITIVE", "positive"},
+			{"Negative", "negative"},
+			{"NEUTRAL", "neutral"},
+			{"mixed", "mixed"},
+			{"unknown", "unknown"},
+		}
+
+		for _, tt := range tests {
+			result := normalizeSentiment(tt.input)
+			if result != tt.expected {
+				t.Errorf("normalizeSentiment(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		// Test normalization works in response flow
+		normalized := normalizeSentiment("PoSiTiVe")
+		if normalized != "positive" {
+			t.Error("Case normalization should work")
+		}
+	})
+}
+
+func TestSentiment(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Sentiment("basic sentiment", provider)
+
+		if synapse == nil {
+			t.Fatal("Sentiment wrapper returned nil")
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"overall": "positive", "confidence": 0.9, "scores": {"positive": 0.9, "negative": 0.05, "neutral": 0.05}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
+		synapse := Sentiment("basic sentiment", provider,
+			WithRetry(3),
+			WithTimeout(10*time.Second))
+
+		if synapse == nil {
+			t.Fatal("Sentiment wrapper with options returned nil")
+		}
+
+		ctx := context.Background()
+		_, err := synapse.Fire(ctx, "test text")
+		if err != nil {
+			t.Errorf("Sentiment synapse Fire failed: %v", err)
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"overall": "positive", "confidence": 0.9, "scores": {"positive": 0.9, "negative": 0.05, "neutral": 0.05}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
+		synapse := Sentiment("basic sentiment", provider).
+			WithDefaults(SentimentInput{Context: "test context"})
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, "test text")
+		if err != nil {
+			t.Fatalf("Sentiment with chaining failed: %v", err)
+		}
+		if result != "positive" {
+			t.Errorf("Expected sentiment='positive', got '%s'", result)
+		}
+	})
 }

@@ -25,6 +25,16 @@ type ModernUser struct {
 	Active   bool   `json:"active"`
 }
 
+func (m ModernUser) Validate() error {
+	if m.UserID == "" {
+		return fmt.Errorf("user_id required")
+	}
+	if m.Contact == "" {
+		return fmt.Errorf("contact required")
+	}
+	return nil
+}
+
 func main() {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {

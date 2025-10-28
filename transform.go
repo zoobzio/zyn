@@ -25,6 +25,17 @@ type TransformResponse struct {
 	Reasoning  []string `json:"reasoning"`  // Explanation of approach
 }
 
+// Validate checks if the response is valid.
+func (r TransformResponse) Validate() error {
+	if r.Output == "" {
+		return fmt.Errorf("output required but empty")
+	}
+	if r.Confidence < 0 || r.Confidence > 1 {
+		return fmt.Errorf("confidence must be 0-1, got %f", r.Confidence)
+	}
+	return nil
+}
+
 // TransformSynapse transforms text according to specified instructions.
 type TransformSynapse struct {
 	instruction string // What transformation to perform
@@ -53,7 +64,7 @@ func Transform(instruction string, provider Provider, opts ...Option) *Transform
 	}
 
 	// Create service with final pipeline
-	svc := NewService[TransformResponse](pipeline)
+	svc := NewService[TransformResponse](pipeline, "transform", provider)
 
 	return &TransformSynapse{
 		instruction: instruction,

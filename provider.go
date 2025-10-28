@@ -7,4 +7,7 @@ import "context"
 type Provider interface {
 	// Call sends a prompt to the LLM and returns the text response
 	Call(ctx context.Context, prompt string, temperature float32) (string, error)
+
+	// Name returns the provider identifier (e.g., "openai", "anthropic")
+	Name() string
 }

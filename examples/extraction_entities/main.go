@@ -17,6 +17,13 @@ type EntityExtraction struct {
 	Reasoning  []string `json:"reasoning"`
 }
 
+func (e EntityExtraction) Validate() error {
+	if len(e.Extracted) == 0 {
+		return fmt.Errorf("no entities extracted")
+	}
+	return nil
+}
+
 func main() {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {

@@ -26,6 +26,16 @@ type ProcessedMetric struct {
 	Category      string            `json:"category"`
 }
 
+func (p ProcessedMetric) Validate() error {
+	if p.MetricName == "" {
+		return fmt.Errorf("metric_name required")
+	}
+	if p.StandardUnit == "" {
+		return fmt.Errorf("standard_unit required")
+	}
+	return nil
+}
+
 func main() {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {

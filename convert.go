@@ -17,7 +17,8 @@ type ConvertInput[T any] struct {
 }
 
 // ConvertSynapse converts structured data from one type to another.
-type ConvertSynapse[TInput any, TOutput any] struct {
+// TOutput must implement Validator to ensure converted data is valid.
+type ConvertSynapse[TInput any, TOutput Validator] struct {
 	instruction  string // What conversion to perform
 	outputSchema string // Pre-computed JSON schema for output type
 	defaults     ConvertInput[TInput]
@@ -25,7 +26,8 @@ type ConvertSynapse[TInput any, TOutput any] struct {
 }
 
 // Convert creates a new struct-to-struct conversion synapse.
-func Convert[TInput any, TOutput any](instruction string, provider Provider, opts ...Option) *ConvertSynapse[TInput, TOutput] {
+// TOutput must implement Validator to ensure converted data is valid.
+func Convert[TInput any, TOutput Validator](instruction string, provider Provider, opts ...Option) *ConvertSynapse[TInput, TOutput] {
 	// Pre-compute the output schema once at construction
 	outputSchema := generateJSONSchema[TOutput]()
 
@@ -48,7 +50,7 @@ func Convert[TInput any, TOutput any](instruction string, provider Provider, opt
 	}
 
 	// Create service with final pipeline
-	svc := NewService[TOutput](pipeline)
+	svc := NewService[TOutput](pipeline, "convert", provider)
 
 	return &ConvertSynapse[TInput, TOutput]{
 		instruction:  instruction,

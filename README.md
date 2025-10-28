@@ -16,10 +16,10 @@ zyn provides a clean, type-safe way to orchestrate Large Language Model (LLM) in
 ## Features
 
 - **8 Synapse Types** covering all LLM interaction patterns
-- **Type-Safe Generics** with compile-time guarantees
+- **Type-Safe Generics** with compile-time guarantees and automatic validation
 - **OpenAI Provider** with extensible provider interface
 - **Built-in Reliability** via [pipz](https://github.com/zoobzio/pipz) integration
-- **Zero Dependencies** for core library
+- **Production Observability** via [capitan](https://github.com/zoobzio/capitan) hooks
 - **Structured Prompts** preventing prompt divergence
 
 ## Quick Start
@@ -121,10 +121,29 @@ type Contact struct {
     Phone string `json:"phone"`
 }
 
+// Validate is REQUIRED - all response types must implement the Validator interface
+// This ensures LLM outputs are validated before being returned to your application
+func (c Contact) Validate() error {
+    if c.Email == "" {
+        return fmt.Errorf("email required")
+    }
+    return nil
+}
+
 extractor := zyn.Extract[Contact]("contact information", provider)
 contact, err := extractor.Fire(ctx, "John Doe at john@example.com or (555) 123-4567")
 // Returns: Contact{Name: "John Doe", Email: "john@example.com", Phone: "(555) 123-4567"}
 ```
+
+**Important:** All custom types used with synapses must implement the `Validator` interface:
+
+```go
+type Validator interface {
+    Validate() error
+}
+```
+
+This ensures LLM responses are validated before being returned. The framework automatically calls `Validate()` after parsing the JSON response and returns an error if validation fails.
 
 ### Text Transformation
 
@@ -163,6 +182,14 @@ type UserV2 struct {
     Contact  struct {
         Email string `json:"email"`
     } `json:"contact"`
+}
+
+// Validate is REQUIRED for the output type
+func (u UserV2) Validate() error {
+    if u.Contact.Email == "" {
+        return fmt.Errorf("contact email required")
+    }
+    return nil
 }
 
 converter := zyn.Convert[UserV1, UserV2]("migrate to v2 schema", provider)
@@ -226,6 +253,90 @@ synapse := zyn.Binary("question", provider,
     zyn.WithErrorHandler(errorLogger),
 )
 ```
+
+## Observability
+
+zyn emits [capitan](https://github.com/zoobzio/capitan) hooks for observability into LLM requests. All hooks include request correlation IDs and rich metadata.
+
+### Available Signals
+
+**request.started** - Emitted before LLM call
+- `request_id` - Unique request identifier
+- `synapse_type` - Type of synapse (binary, extraction, etc.)
+- `provider` - Provider name (openai, etc.)
+- `prompt_task` - Task description
+- `input` - Input text
+- `temperature` - Temperature setting
+
+**request.completed** - Emitted after successful execution
+- `request_id` - Unique request identifier
+- `synapse_type` - Type of synapse
+- `provider` - Provider name
+- `prompt_task` - Task description
+- `input` - Input text
+- `output` - Parsed result as JSON
+- `response` - Raw LLM response
+
+**request.failed** - Emitted on pipeline failure
+- `request_id` - Unique request identifier
+- `synapse_type` - Type of synapse
+- `provider` - Provider name
+- `prompt_task` - Task description
+- `error` - Error message
+
+**response.failed** - Emitted on parse error
+- `request_id` - Unique request identifier
+- `synapse_type` - Type of synapse
+- `provider` - Provider name
+- `prompt_task` - Task description
+- `response` - Raw response that failed to parse
+- `error` - Error message
+- `error_type` - Error type (e.g., "parse_error")
+
+**provider.call.completed** - Emitted after LLM provider call
+- `provider` - Provider name
+- `model` - Model used (e.g., "gpt-4")
+- `prompt_tokens` - Prompt token count
+- `completion_tokens` - Completion token count
+- `total_tokens` - Total token count
+- `duration_ms` - Request duration in milliseconds
+
+### Usage Example
+
+```go
+import (
+    "context"
+    "log"
+    "github.com/zoobzio/capitan"
+    "github.com/zoobzio/zyn"
+)
+
+// Track token usage and costs
+capitan.Hook(zyn.ProviderCallCompleted, func(ctx context.Context, e *capitan.Event) {
+    model, _ := zyn.ModelKey.From(e)
+    tokens, _ := zyn.TotalTokensKey.From(e)
+    duration, _ := zyn.DurationMsKey.From(e)
+
+    log.Printf("LLM Call: model=%s tokens=%d duration=%dms", model, tokens, duration)
+})
+
+// Log all request failures
+capitan.Hook(zyn.RequestFailed, func(ctx context.Context, e *capitan.Event) {
+    requestID, _ := zyn.RequestIDKey.From(e)
+    synapseType, _ := zyn.SynapseTypeKey.From(e)
+    err, _ := zyn.ErrorKey.From(e)
+
+    log.Printf("Request failed: id=%s type=%s error=%s", requestID, synapseType, err)
+})
+
+// Observe all events for debugging
+observer := capitan.Observe(func(ctx context.Context, e *capitan.Event) {
+    log.Printf("Event: %s", e.Signal())
+})
+defer observer.Close()
+```
+
+All hooks fire asynchronously and include request correlation via `request_id` for tracing complete request lifecycles.
 
 ## Testing
 

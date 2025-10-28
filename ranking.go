@@ -23,6 +23,20 @@ type RankingResponse struct {
 	Reasoning  []string `json:"reasoning"`  // Explanation of ranking
 }
 
+// Validate checks if the response is valid.
+func (r RankingResponse) Validate() error {
+	if len(r.Ranked) == 0 {
+		return fmt.Errorf("ranked list required but empty")
+	}
+	if r.Confidence < 0 || r.Confidence > 1 {
+		return fmt.Errorf("confidence must be 0-1, got %f", r.Confidence)
+	}
+	if len(r.Reasoning) == 0 {
+		return fmt.Errorf("reasoning required but empty")
+	}
+	return nil
+}
+
 // RankingSynapse represents a ranking/sorting synapse.
 type RankingSynapse struct {
 	criteria string
@@ -51,7 +65,7 @@ func NewRanking(criteria string, provider Provider, opts ...Option) *RankingSyna
 	}
 
 	// Create service with final pipeline
-	svc := NewService[RankingResponse](pipeline)
+	svc := NewService[RankingResponse](pipeline, "ranking", provider)
 
 	return &RankingSynapse{
 		criteria: criteria,
@@ -103,18 +117,8 @@ func (r *RankingSynapse) FireWithInput(ctx context.Context, input RankingInput) 
 		temperature = 0.2 // Low temperature for consistent ranking
 	}
 
-	// Execute through service
-	response, err := r.service.Execute(ctx, prompt, temperature)
-	if err != nil {
-		return response, err
-	}
-
-	// Validate response
-	if err := r.validateResponse(response, merged); err != nil {
-		return response, fmt.Errorf("ranking validation failed: %w", err)
-	}
-
-	return response, nil
+	// Execute through service (validation happens in Service.Execute)
+	return r.service.Execute(ctx, prompt, temperature)
 }
 
 // mergeInputs combines defaults with user input.
@@ -176,52 +180,6 @@ func (r *RankingSynapse) buildPrompt(input RankingInput) *Prompt {
 	}
 
 	return prompt
-}
-
-// validateResponse ensures the ranking is valid.
-func (*RankingSynapse) validateResponse(response RankingResponse, input RankingInput) error {
-	// Empty response is always invalid
-	if len(response.Ranked) == 0 {
-		return fmt.Errorf("empty ranking returned")
-	}
-
-	// For TopN, we expect fewer items
-	if input.TopN > 0 {
-		// Just check that returned items are subset of original
-		itemSet := make(map[string]bool)
-		for _, item := range input.Items {
-			itemSet[item] = true
-		}
-		for _, ranked := range response.Ranked {
-			if !itemSet[ranked] {
-				return fmt.Errorf("ranked item '%s' not in original list", ranked)
-			}
-		}
-		return nil
-	}
-
-	// Full ranking - check completeness
-	if len(response.Ranked) != len(input.Items) {
-		return fmt.Errorf("expected %d items, got %d", len(input.Items), len(response.Ranked))
-	}
-
-	// Check all items present and no duplicates
-	seen := make(map[string]bool)
-	for _, item := range response.Ranked {
-		if seen[item] {
-			return fmt.Errorf("duplicate item in ranking: %s", item)
-		}
-		seen[item] = true
-	}
-
-	// Check all original items are present
-	for _, original := range input.Items {
-		if !seen[original] {
-			return fmt.Errorf("missing item in ranking: %s", original)
-		}
-	}
-
-	return nil
 }
 
 // Ranking creates a new ranking synapse bound to a provider.

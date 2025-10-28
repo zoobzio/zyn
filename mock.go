@@ -40,6 +40,11 @@ func (m *MockProvider) Call(_ context.Context, prompt string, _ float32) (string
 	return m.generateResponse(prompt), nil
 }
 
+// Name returns the provider identifier.
+func (m *MockProvider) Name() string {
+	return m.name
+}
+
 // SetAvailable sets the availability status (for testing failures).
 func (m *MockProvider) SetAvailable(available bool) {
 	m.available = available
@@ -49,6 +54,31 @@ func (m *MockProvider) SetAvailable(available bool) {
 func (m *MockProvider) generateResponse(prompt string) string {
 	// Check for JSON response request
 	if strings.Contains(prompt, "Response JSON Schema:") {
+		// Classification pattern
+		if strings.Contains(prompt, "Categories:") {
+			return m.generateClassificationResponse(prompt)
+		}
+
+		// Ranking pattern
+		if strings.Contains(prompt, "Items:") {
+			return m.generateRankingResponse(prompt)
+		}
+
+		// Sentiment pattern
+		if strings.Contains(prompt, "sentiment") || strings.Contains(prompt, "Sentiment") {
+			return m.generateSentimentResponse(prompt)
+		}
+
+		// Transform pattern
+		if strings.Contains(prompt, "transform") || strings.Contains(prompt, "Transform") {
+			return `{"output": "transformed text", "confidence": 0.9, "changes": ["change1"], "reasoning": ["mock"]}`
+		}
+
+		// Analyze pattern
+		if strings.Contains(prompt, "analyze") || strings.Contains(prompt, "Analyze") {
+			return `{"analysis": "mock analysis", "confidence": 0.9, "findings": ["finding1"], "reasoning": ["mock"]}`
+		}
+
 		// Binary decision pattern
 		if strings.Contains(prompt, "valid email") || strings.Contains(prompt, "email") {
 			return m.generateEmailValidationResponse(prompt)
@@ -60,6 +90,142 @@ func (m *MockProvider) generateResponse(prompt string) string {
 
 	// Default response
 	return "Mock response"
+}
+
+// generateClassificationResponse creates classification responses.
+func (*MockProvider) generateClassificationResponse(prompt string) string {
+	// Extract first category as primary
+	categories := extractCategories(prompt)
+	primary := "unknown"
+	if len(categories) > 0 {
+		primary = categories[0]
+	}
+
+	response := struct {
+		Primary    string   `json:"primary"`
+		Secondary  string   `json:"secondary"`
+		Confidence float64  `json:"confidence"`
+		Reasoning  []string `json:"reasoning"`
+	}{
+		Primary:    primary,
+		Secondary:  "",
+		Confidence: 0.85,
+		Reasoning:  []string{"Mock classification"},
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return `{"primary": "unknown", "secondary": "", "confidence": 0.85, "reasoning": ["Mock classification"]}`
+	}
+	return string(jsonBytes)
+}
+
+// generateRankingResponse creates ranking responses.
+func (*MockProvider) generateRankingResponse(prompt string) string {
+	items := extractItems(prompt)
+
+	response := struct {
+		Ranked     []string `json:"ranked"`
+		Confidence float64  `json:"confidence"`
+		Reasoning  []string `json:"reasoning"`
+	}{
+		Ranked:     items,
+		Confidence: 0.85,
+		Reasoning:  []string{"Mock ranking"},
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return `{"ranked": [], "confidence": 0.85, "reasoning": ["Mock ranking"]}`
+	}
+	return string(jsonBytes)
+}
+
+// generateSentimentResponse creates sentiment responses.
+func (*MockProvider) generateSentimentResponse(_ string) string {
+	response := struct {
+		Overall    string  `json:"overall"`
+		Confidence float64 `json:"confidence"`
+		Scores     struct {
+			Positive float64 `json:"positive"`
+			Negative float64 `json:"negative"`
+			Neutral  float64 `json:"neutral"`
+		} `json:"scores"`
+		Aspects   map[string]string `json:"aspects"`
+		Emotions  []string          `json:"emotions"`
+		Reasoning []string          `json:"reasoning"`
+	}{
+		Overall:    "positive",
+		Confidence: 0.85,
+		Scores: struct {
+			Positive float64 `json:"positive"`
+			Negative float64 `json:"negative"`
+			Neutral  float64 `json:"neutral"`
+		}{Positive: 0.7, Negative: 0.1, Neutral: 0.2},
+		Aspects:   map[string]string{},
+		Emotions:  []string{"joy"},
+		Reasoning: []string{"Mock sentiment"},
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return `{"overall": "positive", "confidence": 0.85, "scores": {"positive": 0.7, "negative": 0.1, "neutral": 0.2}, "aspects": {}, "emotions": ["joy"], "reasoning": ["Mock sentiment"]}`
+	}
+	return string(jsonBytes)
+}
+
+// extractCategories extracts categories from prompt.
+func extractCategories(prompt string) []string {
+	var categories []string
+	inCategories := false
+
+	for _, line := range strings.Split(prompt, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "Categories:" {
+			inCategories = true
+			continue
+		}
+		if inCategories {
+			if strings.HasPrefix(trimmed, "1. ") || strings.HasPrefix(trimmed, "2. ") || strings.HasPrefix(trimmed, "3. ") {
+				// Extract category name after number
+				parts := strings.SplitN(trimmed, ". ", 2)
+				if len(parts) == 2 {
+					categories = append(categories, parts[1])
+				}
+			} else if trimmed != "" && !strings.Contains(trimmed, ":") {
+				break
+			}
+		}
+	}
+
+	return categories
+}
+
+// extractItems extracts items from prompt.
+func extractItems(prompt string) []string {
+	var items []string
+	inItems := false
+
+	for _, line := range strings.Split(prompt, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "Items:" {
+			inItems = true
+			continue
+		}
+		if inItems {
+			if strings.HasPrefix(trimmed, "1. ") || strings.HasPrefix(trimmed, "2. ") || strings.HasPrefix(trimmed, "3. ") {
+				// Extract item after number
+				parts := strings.SplitN(trimmed, ". ", 2)
+				if len(parts) == 2 {
+					items = append(items, parts[1])
+				}
+			} else if trimmed != "" && !strings.Contains(trimmed, ":") {
+				break
+			}
+		}
+	}
+
+	return items
 }
 
 // generateEmailValidationResponse creates email validation responses.
@@ -122,6 +288,11 @@ func NewMockProviderWithCallback(callback func(prompt string, temperature float3
 	return &mockProviderCallback{callback: callback}
 }
 
+// NewMockProviderWithError creates a mock that always returns an error.
+func NewMockProviderWithError(errMsg string) Provider {
+	return &mockProviderError{errMsg: errMsg}
+}
+
 // mockProviderFixed always returns a fixed response.
 type mockProviderFixed struct {
 	response string
@@ -131,6 +302,10 @@ func (m *mockProviderFixed) Call(_ context.Context, _ string, _ float32) (string
 	return m.response, nil
 }
 
+func (*mockProviderFixed) Name() string {
+	return "mock-fixed"
+}
+
 // mockProviderCallback uses a callback to generate responses.
 type mockProviderCallback struct {
 	callback func(string, float32) (string, error)
@@ -138,4 +313,21 @@ type mockProviderCallback struct {
 
 func (m *mockProviderCallback) Call(_ context.Context, prompt string, temperature float32) (string, error) {
 	return m.callback(prompt, temperature)
+}
+
+func (*mockProviderCallback) Name() string {
+	return "mock-callback"
+}
+
+// mockProviderError always returns an error.
+type mockProviderError struct {
+	errMsg string
+}
+
+func (m *mockProviderError) Call(_ context.Context, _ string, _ float32) (string, error) {
+	return "", fmt.Errorf("%s", m.errMsg)
+}
+
+func (*mockProviderError) Name() string {
+	return "mock-error"
 }

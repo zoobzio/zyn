@@ -17,6 +17,13 @@ type DateExtraction struct {
 	Reasoning  []string `json:"reasoning"`
 }
 
+func (d DateExtraction) Validate() error {
+	if len(d.Extracted) == 0 {
+		return fmt.Errorf("no dates extracted")
+	}
+	return nil
+}
+
 func main() {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {

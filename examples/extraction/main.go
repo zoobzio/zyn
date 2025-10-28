@@ -17,6 +17,13 @@ type TechExtraction struct {
 	Reasoning  []string `json:"reasoning"`
 }
 
+func (t TechExtraction) Validate() error {
+	if len(t.Extracted) == 0 {
+		return fmt.Errorf("no technologies extracted")
+	}
+	return nil
+}
+
 func main() {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {

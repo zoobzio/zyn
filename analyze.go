@@ -24,6 +24,17 @@ type AnalyzeResponse struct {
 	Reasoning  []string `json:"reasoning"`  // Explanation of analysis approach
 }
 
+// Validate checks if the response is valid.
+func (r AnalyzeResponse) Validate() error {
+	if r.Analysis == "" {
+		return fmt.Errorf("analysis required but empty")
+	}
+	if r.Confidence < 0 || r.Confidence > 1 {
+		return fmt.Errorf("confidence must be 0-1, got %f", r.Confidence)
+	}
+	return nil
+}
+
 // AnalyzeSynapse analyzes structured data and produces text analysis.
 type AnalyzeSynapse[T any] struct {
 	what     string // What kind of analysis to perform
@@ -52,7 +63,7 @@ func Analyze[T any](what string, provider Provider, opts ...Option) *AnalyzeSyna
 	}
 
 	// Create service with final pipeline
-	svc := NewService[AnalyzeResponse](pipeline)
+	svc := NewService[AnalyzeResponse](pipeline, "analyze", provider)
 
 	return &AnalyzeSynapse[T]{
 		what: what,

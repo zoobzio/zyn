@@ -2,294 +2,337 @@ package zyn
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 )
 
-// Test structs for conversion.
-type UserV1 struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Age      int    `json:"age"`
-	Location string `json:"location"`
+type SimpleInput struct {
+	Value int    `json:"value"`
+	Name  string `json:"name"`
 }
 
-type UserV2 struct {
-	FullName string `json:"full_name"`
-	Contact  struct {
-		Email string `json:"email"`
-	} `json:"contact"`
-	Demographics struct {
-		Age      int    `json:"age"`
-		Location string `json:"location"`
-	} `json:"demographics"`
+type SimpleOutput struct {
+	Count  int    `json:"count"`
+	Label  string `json:"label"`
+	Active bool   `json:"active"`
 }
 
-type APIProduct struct {
-	ID          string  `json:"product_id"`
-	Name        string  `json:"product_name"`
-	Price       float64 `json:"price_usd"`
-	InStock     bool    `json:"available"`
-	Description string  `json:"desc"`
+func (SimpleOutput) Validate() error {
+	return nil
 }
 
-type DBProduct struct {
-	ID           int    `json:"id"`
-	Name         string `json:"name"`
-	PriceCents   int    `json:"price_cents"`
-	Availability string `json:"availability"`
-	Description  string `json:"description"`
-}
+func TestConvert(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Convert[SimpleInput, SimpleOutput]("convert data", provider)
 
-type ExternalEvent struct {
-	EventType string            `json:"type"`
-	Timestamp string            `json:"timestamp"`
-	Data      map[string]string `json:"data"`
-}
-
-type InternalEvent struct {
-	Type       string    `json:"event_type"`
-	OccurredAt time.Time `json:"occurred_at"`
-	UserID     string    `json:"user_id"`
-	Action     string    `json:"action"`
-	Metadata   string    `json:"metadata"`
-}
-
-func TestConvertUserSchema(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"full_name": "John Doe",
-		"contact": {
-			"email": "john@example.com"
-		},
-		"demographics": {
-			"age": 30,
-			"location": "New York"
+		if synapse == nil {
+			t.Fatal("Convert wrapper returned nil")
 		}
-	}`)
-
-	converter := Convert[UserV1, UserV2]("migrate to v2 schema", provider, WithTimeout(5*time.Second))
-
-	v1User := UserV1{
-		Name:     "John Doe",
-		Email:    "john@example.com",
-		Age:      30,
-		Location: "New York",
-	}
-
-	ctx := context.Background()
-	v2User, err := converter.Fire(ctx, v1User)
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
-
-	if v2User.FullName != "John Doe" {
-		t.Errorf("Expected full_name 'John Doe', got '%s'", v2User.FullName)
-	}
-	if v2User.Contact.Email != "john@example.com" {
-		t.Errorf("Expected email 'john@example.com', got '%s'", v2User.Contact.Email)
-	}
-	if v2User.Demographics.Age != 30 {
-		t.Errorf("Expected age 30, got %d", v2User.Demographics.Age)
-	}
-	if v2User.Demographics.Location != "New York" {
-		t.Errorf("Expected location 'New York', got '%s'", v2User.Demographics.Location)
-	}
-}
-
-func TestConvertAPIToDatabase(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"id": 12345,
-		"name": "Premium Widget",
-		"price_cents": 299900,
-		"availability": "in_stock",
-		"description": "High-quality widget for professionals"
-	}`)
-
-	mapper := Convert[APIProduct, DBProduct]("map API response to database model", provider)
-
-	apiProduct := APIProduct{
-		ID:          "prod_12345",
-		Name:        "Premium Widget",
-		Price:       2999.00,
-		InStock:     true,
-		Description: "High-quality widget for professionals",
-	}
-
-	ctx := context.Background()
-	dbProduct, err := mapper.Fire(ctx, apiProduct)
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
-
-	if dbProduct.ID != 12345 {
-		t.Errorf("Expected ID 12345, got %d", dbProduct.ID)
-	}
-	if dbProduct.PriceCents != 299900 {
-		t.Errorf("Expected price_cents 299900, got %d", dbProduct.PriceCents)
-	}
-	if dbProduct.Availability != "in_stock" {
-		t.Errorf("Expected availability 'in_stock', got '%s'", dbProduct.Availability)
-	}
-}
-
-func TestConvertWithRules(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"id": 999,
-		"name": "Special Offer Item",
-		"price_cents": 1000,
-		"availability": "limited",
-		"description": "Flash sale: Limited time offer"
-	}`)
-
-	mapper := Convert[APIProduct, DBProduct]("apply pricing rules", provider)
-
-	apiProduct := APIProduct{
-		ID:          "flash_999",
-		Name:        "Special Offer Item",
-		Price:       19.99,
-		InStock:     true,
-		Description: "Limited time offer",
-	}
-
-	input := ConvertInput[APIProduct]{
-		Data:  apiProduct,
-		Rules: "Apply 50% discount for flash sale items, mark as 'limited' availability",
-	}
-
-	ctx := context.Background()
-	dbProduct, err := mapper.FireWithInput(ctx, input)
-	if err != nil {
-		t.Fatalf("FireWithInput failed: %v", err)
-	}
-
-	// Should apply discount rule
-	if dbProduct.PriceCents != 1000 {
-		t.Errorf("Expected discounted price_cents ~1000, got %d", dbProduct.PriceCents)
-	}
-	if dbProduct.Availability != "limited" {
-		t.Errorf("Expected availability 'limited', got '%s'", dbProduct.Availability)
-	}
-}
-
-func TestConvertEventFormat(t *testing.T) {
-	// Mock a time for consistent testing
-	provider := NewMockProviderWithResponse(`{
-		"event_type": "user_login",
-		"occurred_at": "2024-01-15T10:30:00Z",
-		"user_id": "12345",
-		"action": "login",
-		"metadata": "{\"ip\":\"192.168.1.1\",\"browser\":\"Chrome\"}"
-	}`)
-
-	normalizer := Convert[ExternalEvent, InternalEvent]("normalize event format", provider)
-
-	externalEvent := ExternalEvent{
-		EventType: "user.login",
-		Timestamp: "2024-01-15T10:30:00Z",
-		Data: map[string]string{
-			"user_id": "12345",
-			"ip":      "192.168.1.1",
-			"browser": "Chrome",
-		},
-	}
-
-	ctx := context.Background()
-	internalEvent, err := normalizer.Fire(ctx, externalEvent)
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
-
-	if internalEvent.Type != "user_login" {
-		t.Errorf("Expected type 'user_login', got '%s'", internalEvent.Type)
-	}
-	if internalEvent.UserID != "12345" {
-		t.Errorf("Expected user_id '12345', got '%s'", internalEvent.UserID)
-	}
-	if internalEvent.Action != "login" {
-		t.Errorf("Expected action 'login', got '%s'", internalEvent.Action)
-	}
-	if !strings.Contains(internalEvent.Metadata, "192.168.1.1") {
-		t.Errorf("Expected metadata to contain IP address")
-	}
-}
-
-func TestConvertWithContext(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"full_name": "Dr. Jane Smith",
-		"contact": {
-			"email": "dr.smith@hospital.org"
-		},
-		"demographics": {
-			"age": 45,
-			"location": "Medical District, Chicago"
-		}
-	}`)
-
-	converter := Convert[UserV1, UserV2]("enhance with context", provider)
-
-	v1User := UserV1{
-		Name:     "Jane Smith",
-		Email:    "dr.smith@hospital.org",
-		Age:      45,
-		Location: "Chicago",
-	}
-
-	input := ConvertInput[UserV1]{
-		Data:    v1User,
-		Context: "This is a medical professional, add appropriate title and district info",
-	}
-
-	ctx := context.Background()
-	v2User, err := converter.FireWithInput(ctx, input)
-	if err != nil {
-		t.Fatalf("FireWithInput failed: %v", err)
-	}
-
-	if !strings.Contains(v2User.FullName, "Dr.") {
-		t.Errorf("Expected title in full name, got '%s'", v2User.FullName)
-	}
-	if !strings.Contains(v2User.Demographics.Location, "Medical") {
-		t.Errorf("Expected medical district in location, got '%s'", v2User.Demographics.Location)
-	}
-}
-
-func TestConvertPromptStructure(t *testing.T) {
-	var capturedPrompt string
-	provider := NewMockProviderWithCallback(func(prompt string, _ float32) (string, error) {
-		capturedPrompt = prompt
-		return `{"full_name": "test", "contact": {"email": "test@test.com"}, "demographics": {"age": 0, "location": "test"}}`, nil
 	})
 
-	converter := Convert[UserV1, UserV2]("test conversion", provider)
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Convert[SimpleInput, SimpleOutput]("convert data", provider,
+			WithRetry(3),
+			WithTimeout(10*time.Second))
 
-	ctx := context.Background()
-	_, err := converter.Fire(ctx, UserV1{Name: "test"})
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
+		if synapse == nil {
+			t.Fatal("Convert wrapper with options returned nil")
+		}
 
-	// Check prompt structure
-	if !strings.Contains(capturedPrompt, "Task: Convert: test conversion") {
-		t.Error("Prompt missing task description")
-	}
-	if !strings.Contains(capturedPrompt, "Input:") {
-		t.Error("Prompt missing input section")
-	}
-	if !strings.Contains(capturedPrompt, `"name": "test"`) {
-		t.Error("Prompt missing input JSON")
-	}
-	if !strings.Contains(capturedPrompt, "Response JSON Schema:") {
-		t.Error("Prompt missing JSON schema")
-	}
-	// Check for output schema structure
-	if !strings.Contains(capturedPrompt, "full_name") {
-		t.Error("Schema missing full_name field")
-	}
-	if !strings.Contains(capturedPrompt, "demographics") {
-		t.Error("Schema missing demographics field")
-	}
-	if !strings.Contains(capturedPrompt, "Constraints:") {
-		t.Error("Prompt missing constraints")
-	}
+		ctx := context.Background()
+		_, err := synapse.Fire(ctx, SimpleInput{Value: 42, Name: "test"})
+		if err != nil {
+			t.Errorf("Convert synapse Fire failed: %v", err)
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"count": 100, "label": "converted", "active": true}`)
+		synapse := Convert[SimpleInput, SimpleOutput]("convert data", provider)
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, SimpleInput{Value: 42, Name: "test"})
+		if err != nil {
+			t.Fatalf("Convert with chaining failed: %v", err)
+		}
+		if result.Count != 100 {
+			t.Errorf("Expected count=100, got %d", result.Count)
+		}
+	})
+}
+
+func TestConvertSynapse_GetPipeline(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Convert[SimpleInput, SimpleOutput]("test", provider)
+
+		pipeline := synapse.GetPipeline()
+		if pipeline == nil {
+			t.Error("GetPipeline returned nil")
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Convert[SimpleInput, SimpleOutput]("test", provider, WithRetry(3))
+
+		pipeline := synapse.GetPipeline()
+		if pipeline == nil {
+			t.Error("GetPipeline returned nil with retry option")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Convert[SimpleInput, SimpleOutput]("test", provider)
+
+		pipeline := synapse.GetPipeline()
+		if pipeline == nil {
+			t.Fatal("GetPipeline returned nil")
+		}
+
+		ctx := context.Background()
+		prompt := &Prompt{Task: "test", Input: "test", Schema: "{}"}
+		req := &SynapseRequest{Prompt: prompt, Temperature: 0.5}
+		_, err := pipeline.Process(ctx, req)
+		if err != nil {
+			t.Errorf("Pipeline processing failed: %v", err)
+		}
+	})
+}
+
+func TestConvertSynapse_Fire(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"count": 42, "label": "test", "active": true}`)
+		synapse := Convert[SimpleInput, SimpleOutput]("convert data", provider)
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, SimpleInput{Value: 10, Name: "input"})
+		if err != nil {
+			t.Fatalf("Fire failed: %v", err)
+		}
+		if result.Count != 42 {
+			t.Errorf("Expected count=42, got %d", result.Count)
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"count": 1, "label": "test", "active": false}`)
+		synapse := Convert[SimpleInput, SimpleOutput]("test", provider,
+			WithRetry(2),
+			WithTimeout(5*time.Second))
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, SimpleInput{Value: 1, Name: "test"})
+		if err != nil {
+			t.Fatalf("Fire with reliability options failed: %v", err)
+		}
+		if result.Count != 1 {
+			t.Errorf("Expected count=1, got %d", result.Count)
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		failing := NewMockProviderWithError("primary failed")
+		fallbackProvider := NewMockProviderWithResponse(`{"count": 99, "label": "fallback", "active": true}`)
+		fallbackSynapse := Convert[SimpleInput, SimpleOutput]("test", fallbackProvider)
+
+		synapse := Convert[SimpleInput, SimpleOutput]("test", failing,
+			WithFallback(fallbackSynapse))
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, SimpleInput{Value: 1, Name: "test"})
+		if err != nil {
+			t.Fatalf("Fire with fallback failed: %v", err)
+		}
+		if result.Count != 99 {
+			t.Error("Expected result from fallback")
+		}
+	})
+}
+
+func TestConvertSynapse_FireWithInput(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"count": 50, "label": "converted", "active": true}`)
+		synapse := Convert[SimpleInput, SimpleOutput]("test", provider)
+
+		ctx := context.Background()
+		input := ConvertInput[SimpleInput]{
+			Data:    SimpleInput{Value: 10, Name: "test"},
+			Context: "test context",
+		}
+		result, err := synapse.FireWithInput(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInput failed: %v", err)
+		}
+		if result.Count != 50 {
+			t.Errorf("Expected count=50, got %d", result.Count)
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"count": 1, "label": "test", "active": true}`)
+		synapse := Convert[SimpleInput, SimpleOutput]("test", provider,
+			WithCircuitBreaker(5, 30*time.Second))
+
+		ctx := context.Background()
+		input := ConvertInput[SimpleInput]{
+			Data:        SimpleInput{Value: 1, Name: "test"},
+			Temperature: 0.3,
+		}
+		result, err := synapse.FireWithInput(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInput with circuit breaker failed: %v", err)
+		}
+		if result.Count != 1 {
+			t.Error("Expected result")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"count": 42, "label": "test", "active": true}`)
+		defaults := ConvertInput[SimpleInput]{
+			Context: "default context",
+			Rules:   "default rules",
+		}
+		synapse := Convert[SimpleInput, SimpleOutput]("test", provider)
+		synapse.defaults = defaults
+
+		ctx := context.Background()
+		input := ConvertInput[SimpleInput]{
+			Data:  SimpleInput{Value: 42, Name: "test"},
+			Rules: "override rules",
+		}
+		result, err := synapse.FireWithInput(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInput with defaults merge failed: %v", err)
+		}
+		if result.Count != 42 {
+			t.Error("Expected result")
+		}
+	})
+}
+
+func TestConvertSynapse_mergeInputs(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Convert[SimpleInput, SimpleOutput]("test", provider)
+		synapse.defaults = ConvertInput[SimpleInput]{
+			Context: "default context",
+		}
+
+		input := ConvertInput[SimpleInput]{
+			Data: SimpleInput{Value: 42, Name: "test"},
+		}
+		merged := synapse.mergeInputs(input)
+
+		if merged.Data.Value != 42 {
+			t.Error("Expected data to be set")
+		}
+		if merged.Context != "default context" {
+			t.Errorf("Expected default context, got '%s'", merged.Context)
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Convert[SimpleInput, SimpleOutput]("test", provider)
+		synapse.defaults = ConvertInput[SimpleInput]{
+			Context:     "default",
+			Temperature: 0.5,
+		}
+
+		input := ConvertInput[SimpleInput]{
+			Data:        SimpleInput{Value: 1, Name: "test"},
+			Context:     "override",
+			Temperature: 0.7,
+		}
+		merged := synapse.mergeInputs(input)
+
+		if merged.Context != "override" {
+			t.Error("Input should override default context")
+		}
+		if merged.Temperature != 0.7 {
+			t.Error("Input should override default temperature")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Convert[SimpleInput, SimpleOutput]("test", provider)
+		synapse.defaults = ConvertInput[SimpleInput]{
+			Context: "default",
+			Rules:   "default rules",
+		}
+
+		input := ConvertInput[SimpleInput]{
+			Data:  SimpleInput{Value: 42, Name: "test"},
+			Rules: "override rules",
+		}
+		merged := synapse.mergeInputs(input)
+
+		if merged.Rules != "override rules" {
+			t.Error("Input should override default rules")
+		}
+		if merged.Context != "default" {
+			t.Error("Should keep default context when not overridden")
+		}
+	})
+}
+
+func TestConvertSynapse_buildPrompt(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Convert[SimpleInput, SimpleOutput]("convert data", provider)
+
+		input := ConvertInput[SimpleInput]{
+			Data: SimpleInput{Value: 42, Name: "test"},
+		}
+		prompt := synapse.buildPrompt(input)
+
+		if prompt.Task != "Convert: convert data" {
+			t.Errorf("Expected task prefix, got '%s'", prompt.Task)
+		}
+		if prompt.Input == "" {
+			t.Error("Expected input to be set")
+		}
+		if prompt.Schema == "" {
+			t.Error("Expected schema to be set")
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Convert[SimpleInput, SimpleOutput]("test", provider)
+
+		input := ConvertInput[SimpleInput]{
+			Data:    SimpleInput{Value: 1, Name: "test"},
+			Context: "conversion context",
+			Rules:   "apply rules",
+		}
+		prompt := synapse.buildPrompt(input)
+
+		if prompt.Context != "conversion context" {
+			t.Error("Expected context to be set")
+		}
+		if len(prompt.Constraints) == 0 {
+			t.Error("Expected constraints to be set")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Convert[SimpleInput, SimpleOutput]("test", provider)
+
+		input := ConvertInput[SimpleInput]{
+			Data: SimpleInput{Value: 42, Name: "test"},
+		}
+		prompt := synapse.buildPrompt(input)
+
+		if err := prompt.Validate(); err != nil {
+			t.Errorf("Built prompt failed validation: %v", err)
+		}
+	})
 }

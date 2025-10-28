@@ -26,6 +26,16 @@ type StructuredEvent struct {
 	IsImportant bool     `json:"is_important"`
 }
 
+func (s StructuredEvent) Validate() error {
+	if s.EventName == "" {
+		return fmt.Errorf("event_name required")
+	}
+	if s.UserID == "" {
+		return fmt.Errorf("user_id required")
+	}
+	return nil
+}
+
 func main() {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {

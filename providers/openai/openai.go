@@ -8,6 +8,9 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/zoobzio/capitan"
+	"github.com/zoobzio/zyn"
 )
 
 // Provider implements the zyn Provider interface for OpenAI API.
@@ -16,6 +19,7 @@ type Provider struct {
 	model      string
 	baseURL    string
 	httpClient *http.Client
+	name       string
 }
 
 // Config holds configuration for the OpenAI provider.
@@ -42,14 +46,22 @@ func New(config Config) *Provider {
 		apiKey:  config.APIKey,
 		model:   config.Model,
 		baseURL: config.BaseURL,
+		name:    "openai",
 		httpClient: &http.Client{
 			Timeout: config.Timeout,
 		},
 	}
 }
 
+// Name returns the provider identifier.
+func (p *Provider) Name() string {
+	return p.name
+}
+
 // Call sends a prompt to OpenAI and returns the response.
 func (p *Provider) Call(ctx context.Context, prompt string, temperature float32) (string, error) {
+	startTime := time.Now()
+
 	// Build request body with JSON mode enabled
 	requestBody := chatCompletionRequest{
 		Model: p.model,
@@ -114,6 +126,19 @@ func (p *Provider) Call(ctx context.Context, prompt string, temperature float32)
 	if len(completionResp.Choices) == 0 {
 		return "", fmt.Errorf("no response choices returned")
 	}
+
+	// Calculate duration
+	duration := time.Since(startTime)
+
+	// Emit provider.call.completed hook with token usage
+	capitan.Emit(ctx, zyn.ProviderCallCompleted,
+		zyn.ProviderKey.Field(p.name),
+		zyn.ModelKey.Field(p.model),
+		zyn.PromptTokensKey.Field(completionResp.Usage.PromptTokens),
+		zyn.CompletionTokensKey.Field(completionResp.Usage.CompletionTokens),
+		zyn.TotalTokensKey.Field(completionResp.Usage.TotalTokens),
+		zyn.DurationMsKey.Field(int(duration.Milliseconds())),
+	)
 
 	return completionResp.Choices[0].Message.Content, nil
 }

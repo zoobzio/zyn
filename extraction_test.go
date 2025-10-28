@@ -6,127 +6,460 @@ import (
 	"time"
 )
 
-// Test structs for extraction.
-type ContactInfo struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
-	Phone string `json:"phone"`
+type ExtractData struct {
+	Name  string   `json:"name"`
+	Value int      `json:"value"`
+	Items []string `json:"items"`
 }
 
-type Product struct {
-	Name        string  `json:"name"`
-	Price       float64 `json:"price"`
-	InStock     bool    `json:"in_stock"`
-	Description string  `json:"description"`
+func (ExtractData) Validate() error {
+	return nil
 }
 
-type Meeting struct {
-	Title     string   `json:"title"`
-	Date      string   `json:"date"`
-	Time      string   `json:"time"`
-	Attendees []string `json:"attendees"`
-	Location  string   `json:"location"`
+func TestNewExtraction(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewExtraction[ExtractData]("extract data", provider)
+
+		if synapse == nil {
+			t.Fatal("Expected synapse to be created")
+		}
+		if synapse.what != "extract data" {
+			t.Errorf("Expected what='extract data', got '%s'", synapse.what)
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewExtraction[ExtractData]("extract data", provider,
+			WithRetry(3),
+			WithTimeout(10*time.Second))
+
+		if synapse == nil {
+			t.Fatal("Expected synapse with reliability options to be created")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		primary := NewMockProviderWithName("primary")
+		fallback := NewMockProviderWithName("fallback")
+		fallbackSynapse := NewExtraction[ExtractData]("extract data", fallback)
+
+		synapse := NewExtraction[ExtractData]("extract data", primary,
+			WithFallback(fallbackSynapse))
+
+		if synapse == nil {
+			t.Fatal("Expected synapse with fallback to be created")
+		}
+	})
 }
 
-func TestExtractionBasic(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"name": "John Doe",
-		"email": "john@example.com",
-		"phone": "(555) 123-4567"
-	}`)
+func TestExtractionSynapse_GetPipeline(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewExtraction[ExtractData]("test", provider)
 
-	extractor := Extract[ContactInfo]("contact information", provider, WithTimeout(5*time.Second))
+		pipeline := synapse.GetPipeline()
+		if pipeline == nil {
+			t.Error("GetPipeline returned nil")
+		}
+	})
 
-	ctx := context.Background()
-	contact, err := extractor.Fire(ctx, "John Doe can be reached at john@example.com or by phone at (555) 123-4567")
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewExtraction[ExtractData]("test", provider, WithRetry(3))
 
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
-	if contact.Name != "John Doe" {
-		t.Errorf("Expected name 'John Doe', got '%s'", contact.Name)
-	}
-	if contact.Email != "john@example.com" {
-		t.Errorf("Expected email 'john@example.com', got '%s'", contact.Email)
-	}
-	if contact.Phone != "(555) 123-4567" {
-		t.Errorf("Expected phone '(555) 123-4567', got '%s'", contact.Phone)
-	}
+		pipeline := synapse.GetPipeline()
+		if pipeline == nil {
+			t.Error("GetPipeline returned nil with retry option")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewExtraction[ExtractData]("test", provider)
+
+		pipeline := synapse.GetPipeline()
+		if pipeline == nil {
+			t.Fatal("GetPipeline returned nil")
+		}
+
+		ctx := context.Background()
+		prompt := &Prompt{Task: "test", Input: "test", Schema: "{}"}
+		req := &SynapseRequest{Prompt: prompt, Temperature: 0.5}
+		_, err := pipeline.Process(ctx, req)
+		if err != nil {
+			t.Errorf("Pipeline processing failed: %v", err)
+		}
+	})
 }
 
-func TestExtractionWithSlice(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"title": "Team Standup",
-		"date": "2024-01-15",
-		"time": "10:00 AM",
-		"attendees": ["Alice", "Bob", "Charlie"],
-		"location": "Conference Room A"
-	}`)
+func TestExtractionSynapse_WithDefaults(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewExtraction[ExtractData]("test", provider)
 
-	extractor := Extract[Meeting]("meeting details", provider)
+		defaults := ExtractionInput{
+			Context:     "default context",
+			Temperature: 0.5,
+		}
+		synapseWithDefaults := synapse.WithDefaults(defaults)
 
-	ctx := context.Background()
-	meeting, err := extractor.Fire(ctx, "Team Standup on January 15, 2024 at 10:00 AM in Conference Room A with Alice, Bob, and Charlie")
+		if synapseWithDefaults == nil {
+			t.Fatal("WithDefaults returned nil")
+		}
+		if synapseWithDefaults.defaults.Context != "default context" {
+			t.Error("Defaults not set correctly")
+		}
+	})
 
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
-	if meeting.Title != "Team Standup" {
-		t.Errorf("Expected title 'Team Standup', got '%s'", meeting.Title)
-	}
-	if len(meeting.Attendees) != 3 {
-		t.Errorf("Expected 3 attendees, got %d", len(meeting.Attendees))
-	}
-	if meeting.Attendees[0] != "Alice" {
-		t.Errorf("Expected first attendee 'Alice', got '%s'", meeting.Attendees[0])
-	}
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewExtraction[ExtractData]("test", provider, WithRetry(3))
+
+		defaults := ExtractionInput{Temperature: 0.7}
+		synapseWithDefaults := synapse.WithDefaults(defaults)
+
+		if synapseWithDefaults == nil {
+			t.Error("WithDefaults returned nil with retry option")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"name": "test", "value": 42, "items": ["a", "b"]}`)
+		synapse := NewExtraction[ExtractData]("test", provider).
+			WithDefaults(ExtractionInput{Context: "default", Temperature: 0.5})
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, "test text")
+		if err != nil {
+			t.Errorf("Fire failed with defaults: %v", err)
+		}
+		if result.Name != "test" {
+			t.Errorf("Expected name='test', got '%s'", result.Name)
+		}
+	})
 }
 
-func TestExtractionWithNumbers(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"name": "Laptop Pro X",
-		"price": 1299.99,
-		"in_stock": true,
-		"description": "High-performance laptop with 16GB RAM"
-	}`)
+func TestExtractionSynapse_Fire(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"name": "extracted", "value": 100, "items": ["item1"]}`)
+		synapse := NewExtraction[ExtractData]("extract data", provider)
 
-	extractor := Extract[Product]("product information", provider)
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, "Some text with data to extract")
+		if err != nil {
+			t.Fatalf("Fire failed: %v", err)
+		}
+		if result.Name != "extracted" {
+			t.Errorf("Expected name='extracted', got '%s'", result.Name)
+		}
+	})
 
-	ctx := context.Background()
-	product, err := extractor.Fire(ctx, "The Laptop Pro X costs $1299.99 and is currently in stock. It's a high-performance laptop with 16GB RAM.")
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"name": "test", "value": 1, "items": []}`)
+		synapse := NewExtraction[ExtractData]("test", provider,
+			WithRetry(2),
+			WithTimeout(5*time.Second))
 
-	if err != nil {
-		t.Fatalf("Fire failed: %v", err)
-	}
-	if product.Price != 1299.99 {
-		t.Errorf("Expected price 1299.99, got %f", product.Price)
-	}
-	if !product.InStock {
-		t.Error("Expected in_stock to be true")
-	}
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, "test input")
+		if err != nil {
+			t.Fatalf("Fire with reliability options failed: %v", err)
+		}
+		if result.Name != "test" {
+			t.Errorf("Expected name='test', got '%s'", result.Name)
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		failing := NewMockProviderWithError("primary failed")
+		fallbackProvider := NewMockProviderWithResponse(`{"name": "fallback", "value": 99, "items": ["fb"]}`)
+		fallbackSynapse := NewExtraction[ExtractData]("test", fallbackProvider)
+
+		synapse := NewExtraction[ExtractData]("test", failing,
+			WithFallback(fallbackSynapse))
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, "test")
+		if err != nil {
+			t.Fatalf("Fire with fallback failed: %v", err)
+		}
+		if result.Name != "fallback" {
+			t.Error("Expected result from fallback")
+		}
+	})
 }
 
-func TestExtractionWithContext(t *testing.T) {
-	provider := NewMockProviderWithResponse(`{
-		"name": "Support Team",
-		"email": "support@company.com",
-		"phone": "(800) 555-1234"
-	}`)
+func TestExtractionSynapse_FireWithInput(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"name": "extracted", "value": 50, "items": ["a", "b"]}`)
+		synapse := NewExtraction[ExtractData]("test", provider)
 
-	extractor := Extract[ContactInfo]("technical support contact", provider)
+		ctx := context.Background()
+		input := ExtractionInput{
+			Text:    "Text to extract from",
+			Context: "test context",
+		}
+		result, err := synapse.FireWithInput(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInput failed: %v", err)
+		}
+		if result.Name != "extracted" {
+			t.Errorf("Expected name='extracted', got '%s'", result.Name)
+		}
+	})
 
-	input := ExtractionInput{
-		Text:    "For technical issues, reach out to our Support Team at support@company.com or call (800) 555-1234",
-		Context: "Looking for technical support information only, not sales contacts",
-	}
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"name": "test", "value": 1, "items": []}`)
+		synapse := NewExtraction[ExtractData]("test", provider,
+			WithCircuitBreaker(5, 30*time.Second))
 
-	ctx := context.Background()
-	contact, err := extractor.FireWithInput(ctx, input)
+		ctx := context.Background()
+		input := ExtractionInput{
+			Text:        "test",
+			Temperature: 0.3,
+		}
+		result, err := synapse.FireWithInput(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInput with circuit breaker failed: %v", err)
+		}
+		if result.Name != "test" {
+			t.Error("Expected result")
+		}
+	})
 
-	if err != nil {
-		t.Fatalf("FireWithInput failed: %v", err)
-	}
-	if contact.Name != "Support Team" {
-		t.Errorf("Expected name 'Support Team', got '%s'", contact.Name)
-	}
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"name": "test", "value": 42, "items": ["x"]}`)
+		defaults := ExtractionInput{
+			Context:  "default context",
+			Examples: "default examples",
+		}
+		synapse := NewExtraction[ExtractData]("test", provider).WithDefaults(defaults)
+
+		ctx := context.Background()
+		input := ExtractionInput{
+			Text:     "test text",
+			Examples: "override examples",
+		}
+		result, err := synapse.FireWithInput(ctx, input)
+		if err != nil {
+			t.Fatalf("FireWithInput with defaults merge failed: %v", err)
+		}
+		if result.Name != "test" {
+			t.Error("Expected result")
+		}
+	})
+}
+
+func TestExtractionSynapse_mergeInputs(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewExtraction[ExtractData]("test", provider)
+		synapse.defaults = ExtractionInput{
+			Context: "default context",
+		}
+
+		input := ExtractionInput{
+			Text: "test text",
+		}
+		merged := synapse.mergeInputs(input)
+
+		if merged.Text != "test text" {
+			t.Errorf("Expected text 'test text', got '%s'", merged.Text)
+		}
+		if merged.Context != "default context" {
+			t.Errorf("Expected default context, got '%s'", merged.Context)
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewExtraction[ExtractData]("test", provider)
+		synapse.defaults = ExtractionInput{
+			Context:     "default",
+			Temperature: 0.5,
+		}
+
+		input := ExtractionInput{
+			Text:        "test",
+			Context:     "override",
+			Temperature: 0.7,
+		}
+		merged := synapse.mergeInputs(input)
+
+		if merged.Context != "override" {
+			t.Error("Input should override default context")
+		}
+		if merged.Temperature != 0.7 {
+			t.Error("Input should override default temperature")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewExtraction[ExtractData]("test", provider)
+		synapse.defaults = ExtractionInput{
+			Context:  "default",
+			Examples: "default examples",
+		}
+
+		input := ExtractionInput{
+			Text:     "test",
+			Examples: "override examples",
+		}
+		merged := synapse.mergeInputs(input)
+
+		if merged.Examples != "override examples" {
+			t.Error("Input should override default examples")
+		}
+		if merged.Context != "default" {
+			t.Error("Should keep default context when not overridden")
+		}
+	})
+}
+
+func TestExtractionSynapse_buildPrompt(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewExtraction[ExtractData]("extract data", provider)
+
+		input := ExtractionInput{
+			Text: "text to extract from",
+		}
+		prompt := synapse.buildPrompt(input)
+
+		if prompt.Task != "Extract extract data" {
+			t.Errorf("Expected task prefix, got '%s'", prompt.Task)
+		}
+		if prompt.Input != "text to extract from" {
+			t.Errorf("Expected input to be set, got '%s'", prompt.Input)
+		}
+		if prompt.Schema == "" {
+			t.Error("Expected schema to be set")
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewExtraction[ExtractData]("test", provider)
+
+		input := ExtractionInput{
+			Text:     "test",
+			Context:  "extraction context",
+			Examples: "example1\nexample2",
+		}
+		prompt := synapse.buildPrompt(input)
+
+		if prompt.Context != "extraction context" {
+			t.Error("Expected context to be set")
+		}
+		if len(prompt.Examples["examples"]) == 0 {
+			t.Error("Expected examples to be set")
+		}
+		if len(prompt.Constraints) == 0 {
+			t.Error("Expected constraints to be set")
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := NewExtraction[ExtractData]("test", provider)
+
+		input := ExtractionInput{
+			Text: "test",
+		}
+		prompt := synapse.buildPrompt(input)
+
+		if err := prompt.Validate(); err != nil {
+			t.Errorf("Built prompt failed validation: %v", err)
+		}
+	})
+}
+
+func TestSplitLines(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		result := splitLines("line1\nline2\nline3")
+		if len(result) != 3 {
+			t.Errorf("Expected 3 lines, got %d", len(result))
+		}
+		if result[0] != "line1" {
+			t.Errorf("Expected 'line1', got '%s'", result[0])
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		tests := []struct {
+			input    string
+			expected int
+		}{
+			{"single line", 1},
+			{"", 0},
+			{"\n\n", 2},
+			{"line1\n", 1},
+		}
+
+		for _, tt := range tests {
+			result := splitLines(tt.input)
+			if len(result) != tt.expected {
+				t.Errorf("splitLines(%q): expected %d lines, got %d", tt.input, tt.expected, len(result))
+			}
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		// Test that splitLines output can be used in prompt examples
+		lines := splitLines("example1\nexample2\nexample3")
+		if len(lines) != 3 {
+			t.Error("Expected 3 lines for examples")
+		}
+		for _, line := range lines {
+			if line == "" {
+				t.Error("Lines should not be empty")
+			}
+		}
+	})
+}
+
+func TestExtract(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Extract[ExtractData]("extract data", provider)
+
+		if synapse == nil {
+			t.Fatal("Extract wrapper returned nil")
+		}
+	})
+
+	t.Run("reliability", func(t *testing.T) {
+		provider := NewMockProvider()
+		synapse := Extract[ExtractData]("extract data", provider,
+			WithRetry(3),
+			WithTimeout(10*time.Second))
+
+		if synapse == nil {
+			t.Fatal("Extract wrapper with options returned nil")
+		}
+
+		ctx := context.Background()
+		_, err := synapse.Fire(ctx, "test text")
+		if err != nil {
+			t.Errorf("Extract synapse Fire failed: %v", err)
+		}
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		provider := NewMockProviderWithResponse(`{"name": "test", "value": 42, "items": ["x"]}`)
+		synapse := Extract[ExtractData]("extract data", provider).
+			WithDefaults(ExtractionInput{Context: "test context"})
+
+		ctx := context.Background()
+		result, err := synapse.Fire(ctx, "test text")
+		if err != nil {
+			t.Fatalf("Extract with chaining failed: %v", err)
+		}
+		if result.Name != "test" {
+			t.Errorf("Expected name='test', got '%s'", result.Name)
+		}
+	})
 }
