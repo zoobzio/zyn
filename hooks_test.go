@@ -225,6 +225,53 @@ func TestResponseParseFailedHook(t *testing.T) {
 	}
 }
 
+// TestProviderCallStartedHook verifies that provider.call.started hook is emitted.
+func TestProviderCallStartedHook(t *testing.T) {
+	var wg sync.WaitGroup
+	var hookCalled bool
+	var providerReceived string
+	var modelReceived string
+
+	wg.Add(1)
+	listener := capitan.Hook(ProviderCallStarted, func(_ context.Context, e *capitan.Event) {
+		defer wg.Done()
+		hookCalled = true
+		providerReceived, _ = ProviderKey.From(e)
+		modelReceived, _ = ModelKey.From(e)
+	})
+	defer listener.Close()
+
+	// Emit a test event
+	capitan.Emit(context.Background(), ProviderCallStarted,
+		ProviderKey.Field("openai"),
+		ModelKey.Field("gpt-4"),
+	)
+
+	// Wait for hook
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Success
+	case <-context.Background().Done():
+		t.Fatal("Timeout waiting for hook")
+	}
+
+	if !hookCalled {
+		t.Error("provider.call.started hook was not called")
+	}
+	if providerReceived != "openai" {
+		t.Errorf("Expected provider 'openai', got %q", providerReceived)
+	}
+	if modelReceived != "gpt-4" {
+		t.Errorf("Expected model 'gpt-4', got %q", modelReceived)
+	}
+}
+
 // TestProviderCallCompletedHook verifies that provider.call.completed hook is emitted with all fields.
 func TestProviderCallCompletedHook(t *testing.T) {
 	var wg sync.WaitGroup
@@ -235,6 +282,8 @@ func TestProviderCallCompletedHook(t *testing.T) {
 	var completionTokensReceived int
 	var totalTokensReceived int
 	var durationReceived int
+	var statusCodeReceived int
+	var responseIDReceived string
 
 	wg.Add(1)
 	listener := capitan.Hook(ProviderCallCompleted, func(_ context.Context, e *capitan.Event) {
@@ -246,6 +295,8 @@ func TestProviderCallCompletedHook(t *testing.T) {
 		completionTokensReceived, _ = CompletionTokensKey.From(e)
 		totalTokensReceived, _ = TotalTokensKey.From(e)
 		durationReceived, _ = DurationMsKey.From(e)
+		statusCodeReceived, _ = HTTPStatusCodeKey.From(e)
+		responseIDReceived, _ = ResponseIDKey.From(e)
 	})
 	defer listener.Close()
 
@@ -257,6 +308,8 @@ func TestProviderCallCompletedHook(t *testing.T) {
 		CompletionTokensKey.Field(20),
 		TotalTokensKey.Field(30),
 		DurationMsKey.Field(150),
+		HTTPStatusCodeKey.Field(200),
+		ResponseIDKey.Field("chatcmpl-123"),
 	)
 
 	// Wait for hook
@@ -293,6 +346,68 @@ func TestProviderCallCompletedHook(t *testing.T) {
 	}
 	if durationReceived != 150 {
 		t.Errorf("Expected duration 150ms, got %d", durationReceived)
+	}
+	if statusCodeReceived != 200 {
+		t.Errorf("Expected status code 200, got %d", statusCodeReceived)
+	}
+	if responseIDReceived != "chatcmpl-123" {
+		t.Errorf("Expected response ID 'chatcmpl-123', got %q", responseIDReceived)
+	}
+}
+
+// TestProviderCallFailedHook verifies that provider.call.failed hook is emitted with error metadata.
+func TestProviderCallFailedHook(t *testing.T) {
+	var wg sync.WaitGroup
+	var hookCalled bool
+	var statusCodeReceived int
+	var errorReceived string
+	var errorTypeReceived string
+
+	wg.Add(1)
+	listener := capitan.Hook(ProviderCallFailed, func(_ context.Context, e *capitan.Event) {
+		defer wg.Done()
+		hookCalled = true
+		statusCodeReceived, _ = HTTPStatusCodeKey.From(e)
+		errorReceived, _ = ErrorKey.From(e)
+		errorTypeReceived, _ = APIErrorTypeKey.From(e)
+	})
+	defer listener.Close()
+
+	// Emit a test event
+	capitan.Emit(context.Background(), ProviderCallFailed,
+		ProviderKey.Field("openai"),
+		ModelKey.Field("gpt-4"),
+		HTTPStatusCodeKey.Field(429),
+		ErrorKey.Field("rate limit exceeded"),
+		APIErrorTypeKey.Field("rate_limit_error"),
+		DurationMsKey.Field(50),
+	)
+
+	// Wait for hook
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Success
+	case <-context.Background().Done():
+		t.Fatal("Timeout waiting for hook")
+	}
+
+	if !hookCalled {
+		t.Error("provider.call.failed hook was not called")
+	}
+	if statusCodeReceived != 429 {
+		t.Errorf("Expected status code 429, got %d", statusCodeReceived)
+	}
+	if errorReceived != "rate limit exceeded" {
+		t.Errorf("Expected error 'rate limit exceeded', got %q", errorReceived)
+	}
+	if errorTypeReceived != "rate_limit_error" {
+		t.Errorf("Expected error type 'rate_limit_error', got %q", errorTypeReceived)
 	}
 }
 

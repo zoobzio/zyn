@@ -62,6 +62,12 @@ func (p *Provider) Name() string {
 func (p *Provider) Call(ctx context.Context, prompt string, temperature float32) (string, error) {
 	startTime := time.Now()
 
+	// Emit provider.call.started hook
+	capitan.Emit(ctx, zyn.ProviderCallStarted,
+		zyn.ProviderKey.Field(p.name),
+		zyn.ModelKey.Field(p.model),
+	)
+
 	// Build request body with JSON mode enabled
 	requestBody := chatCompletionRequest{
 		Model: p.model,
@@ -106,14 +112,37 @@ func (p *Provider) Call(ctx context.Context, prompt string, temperature float32)
 
 	// Handle errors
 	if resp.StatusCode != http.StatusOK {
+		duration := time.Since(startTime)
 		var errorResp errorResponse
+
+		// Emit provider.call.failed hook
+		fields := []capitan.Field{
+			zyn.ProviderKey.Field(p.name),
+			zyn.ModelKey.Field(p.model),
+			zyn.HTTPStatusCodeKey.Field(resp.StatusCode),
+			zyn.DurationMsKey.Field(int(duration.Milliseconds())),
+		}
+
 		if err := json.Unmarshal(body, &errorResp); err == nil && errorResp.Error.Message != "" {
+			fields = append(fields,
+				zyn.ErrorKey.Field(errorResp.Error.Message),
+				zyn.APIErrorTypeKey.Field(errorResp.Error.Type),
+			)
+			if errorResp.Error.Code != "" {
+				fields = append(fields, zyn.APIErrorCodeKey.Field(errorResp.Error.Code))
+			}
+
+			capitan.Emit(ctx, zyn.ProviderCallFailed, fields...)
+
 			// Check for rate limit
 			if resp.StatusCode == http.StatusTooManyRequests {
 				return "", fmt.Errorf("rate limit exceeded: %s", errorResp.Error.Message)
 			}
 			return "", fmt.Errorf("openai error (%d): %s", resp.StatusCode, errorResp.Error.Message)
 		}
+
+		fields = append(fields, zyn.ErrorKey.Field(fmt.Sprintf("status %d", resp.StatusCode)))
+		capitan.Emit(ctx, zyn.ProviderCallFailed, fields...)
 		return "", fmt.Errorf("openai error: status %d", resp.StatusCode)
 	}
 
@@ -130,15 +159,24 @@ func (p *Provider) Call(ctx context.Context, prompt string, temperature float32)
 	// Calculate duration
 	duration := time.Since(startTime)
 
-	// Emit provider.call.completed hook with token usage
-	capitan.Emit(ctx, zyn.ProviderCallCompleted,
+	// Emit provider.call.completed hook with token usage and metadata
+	fields := []capitan.Field{
 		zyn.ProviderKey.Field(p.name),
-		zyn.ModelKey.Field(p.model),
+		zyn.ModelKey.Field(completionResp.Model),
 		zyn.PromptTokensKey.Field(completionResp.Usage.PromptTokens),
 		zyn.CompletionTokensKey.Field(completionResp.Usage.CompletionTokens),
 		zyn.TotalTokensKey.Field(completionResp.Usage.TotalTokens),
 		zyn.DurationMsKey.Field(int(duration.Milliseconds())),
-	)
+		zyn.HTTPStatusCodeKey.Field(resp.StatusCode),
+		zyn.ResponseIDKey.Field(completionResp.ID),
+		zyn.ResponseCreatedKey.Field(int(completionResp.Created)),
+	}
+
+	if len(completionResp.Choices) > 0 && completionResp.Choices[0].FinishReason != "" {
+		fields = append(fields, zyn.ResponseFinishReasonKey.Field(completionResp.Choices[0].FinishReason))
+	}
+
+	capitan.Emit(ctx, zyn.ProviderCallCompleted, fields...)
 
 	return completionResp.Choices[0].Message.Content, nil
 }

@@ -260,46 +260,63 @@ zyn emits [capitan](https://github.com/zoobzio/capitan) hooks for observability 
 
 ### Available Signals
 
-**request.started** - Emitted before LLM call
-- `request_id` - Unique request identifier
-- `synapse_type` - Type of synapse (binary, extraction, etc.)
-- `provider` - Provider name (openai, etc.)
-- `prompt_task` - Task description
-- `input` - Input text
-- `temperature` - Temperature setting
+**llm.request.started** - Emitted before LLM call
+- `llm.request.id` - Unique request identifier
+- `llm.synapse.type` - Type of synapse (binary, extraction, etc.)
+- `llm.provider` - Provider name (openai, etc.)
+- `llm.prompt.task` - Task description
+- `llm.input` - Input text
+- `llm.temperature` - Temperature setting
 
-**request.completed** - Emitted after successful execution
-- `request_id` - Unique request identifier
-- `synapse_type` - Type of synapse
-- `provider` - Provider name
-- `prompt_task` - Task description
-- `input` - Input text
-- `output` - Parsed result as JSON
-- `response` - Raw LLM response
+**llm.request.completed** - Emitted after successful execution
+- `llm.request.id` - Unique request identifier
+- `llm.synapse.type` - Type of synapse
+- `llm.provider` - Provider name
+- `llm.prompt.task` - Task description
+- `llm.input` - Input text
+- `llm.output` - Parsed result as JSON
+- `llm.response` - Raw LLM response
 
-**request.failed** - Emitted on pipeline failure
-- `request_id` - Unique request identifier
-- `synapse_type` - Type of synapse
-- `provider` - Provider name
-- `prompt_task` - Task description
-- `error` - Error message
+**llm.request.failed** - Emitted on pipeline failure
+- `llm.request.id` - Unique request identifier
+- `llm.synapse.type` - Type of synapse
+- `llm.provider` - Provider name
+- `llm.prompt.task` - Task description
+- `llm.error` - Error message
 
-**response.failed** - Emitted on parse error
-- `request_id` - Unique request identifier
-- `synapse_type` - Type of synapse
-- `provider` - Provider name
-- `prompt_task` - Task description
-- `response` - Raw response that failed to parse
-- `error` - Error message
-- `error_type` - Error type (e.g., "parse_error")
+**llm.response.failed** - Emitted on parse/validation error
+- `llm.request.id` - Unique request identifier
+- `llm.synapse.type` - Type of synapse
+- `llm.provider` - Provider name
+- `llm.prompt.task` - Task description
+- `llm.response` - Raw response that failed to parse
+- `llm.error` - Error message
+- `llm.error.type` - Error type ("parse_error", "validation_error")
 
-**provider.call.completed** - Emitted after LLM provider call
-- `provider` - Provider name
-- `model` - Model used (e.g., "gpt-4")
-- `prompt_tokens` - Prompt token count
-- `completion_tokens` - Completion token count
-- `total_tokens` - Total token count
-- `duration_ms` - Request duration in milliseconds
+**llm.provider.call.started** - Emitted before provider API call
+- `llm.provider` - Provider name
+- `llm.model` - Model to be used
+
+**llm.provider.call.completed** - Emitted after successful provider call
+- `llm.provider` - Provider name
+- `llm.model` - Model used (actual model, may differ from requested)
+- `llm.tokens.prompt` - Prompt token count
+- `llm.tokens.completion` - Completion token count
+- `llm.tokens.total` - Total token count
+- `llm.duration.ms` - Provider call duration in milliseconds
+- `llm.http.status.code` - HTTP status code (e.g., 200)
+- `llm.response.id` - Provider's response ID for debugging
+- `llm.response.created` - Server timestamp
+- `llm.response.finish.reason` - Completion reason ("stop", "length", "content_filter", etc.)
+
+**llm.provider.call.failed** - Emitted on provider API failure
+- `llm.provider` - Provider name
+- `llm.model` - Model that was requested
+- `llm.http.status.code` - HTTP status code (e.g., 429, 500)
+- `llm.duration.ms` - Time until failure
+- `llm.error` - Error message
+- `llm.api.error.type` - API error type (e.g., "rate_limit_error")
+- `llm.api.error.code` - API error code (if provided)
 
 ### Usage Example
 
@@ -336,7 +353,7 @@ observer := capitan.Observe(func(ctx context.Context, e *capitan.Event) {
 defer observer.Close()
 ```
 
-All hooks fire asynchronously and include request correlation via `request_id` for tracing complete request lifecycles.
+All hooks fire asynchronously and include request correlation via `llm.request.id` for tracing complete request lifecycles.
 
 ## Testing
 
