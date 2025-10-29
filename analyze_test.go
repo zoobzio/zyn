@@ -375,7 +375,8 @@ func TestAnalyzeSynapse_mergeInputs(t *testing.T) {
 func TestAnalyzeSynapse_buildPrompt(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		synapse := &AnalyzeSynapse[TestData]{
-			what: "data quality",
+			what:   "data quality",
+			schema: generateJSONSchema[AnalyzeResponse](),
 		}
 
 		input := AnalyzeInput[TestData]{
@@ -396,7 +397,8 @@ func TestAnalyzeSynapse_buildPrompt(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		synapse := &AnalyzeSynapse[TestData]{
-			what: "test",
+			what:   "test",
+			schema: generateJSONSchema[AnalyzeResponse](),
 		}
 
 		input := AnalyzeInput[TestData]{
@@ -416,7 +418,8 @@ func TestAnalyzeSynapse_buildPrompt(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		synapse := &AnalyzeSynapse[TestData]{
-			what: "test",
+			what:   "test",
+			schema: generateJSONSchema[AnalyzeResponse](),
 		}
 
 		input := AnalyzeInput[TestData]{

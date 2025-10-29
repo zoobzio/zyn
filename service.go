@@ -2,10 +2,10 @@ package zyn
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/zoobzio/capitan"
 	"github.com/zoobzio/pipz"
 )
@@ -51,7 +51,7 @@ func (s *Service[T]) Execute(ctx context.Context, prompt *Prompt, temperature fl
 	}
 
 	// Generate unique request ID
-	requestID := rand.Text()
+	requestID := uuid.New().String()
 
 	// Create request
 	request := &SynapseRequest{

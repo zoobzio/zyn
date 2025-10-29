@@ -56,7 +56,7 @@ func Convert[TInput any, TOutput Validator](instruction string, provider Provide
 		instruction:  instruction,
 		outputSchema: outputSchema,
 		defaults: ConvertInput[TInput]{
-			Temperature: 0.1, // Very low temperature for consistent conversion
+			Temperature: DefaultTemperatureDeterministic,
 		},
 		service: svc,
 	}
@@ -87,7 +87,7 @@ func (c *ConvertSynapse[TInput, TOutput]) FireWithInput(ctx context.Context, inp
 		temperature = c.defaults.Temperature
 	}
 	if temperature == 0 {
-		temperature = 0.1
+		temperature = DefaultTemperatureDeterministic
 	}
 
 	// Execute through service

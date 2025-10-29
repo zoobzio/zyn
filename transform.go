@@ -39,12 +39,16 @@ func (r TransformResponse) Validate() error {
 // TransformSynapse transforms text according to specified instructions.
 type TransformSynapse struct {
 	instruction string // What transformation to perform
+	schema      string // Pre-computed JSON schema
 	defaults    TransformInput
 	service     *Service[TransformResponse]
 }
 
 // Transform creates a new text transformation synapse.
 func Transform(instruction string, provider Provider, opts ...Option) *TransformSynapse {
+	// Generate schema once at construction
+	schema := generateJSONSchema[TransformResponse]()
+
 	// Create terminal pipeline stage that calls the provider
 	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		// Render prompt to string for provider
@@ -68,8 +72,9 @@ func Transform(instruction string, provider Provider, opts ...Option) *Transform
 
 	return &TransformSynapse{
 		instruction: instruction,
+		schema:      schema,
 		defaults: TransformInput{
-			Temperature: 0.3, // Lower temperature for consistent transformations
+			Temperature: DefaultTemperatureCreative,
 		},
 		service: svc,
 	}
@@ -115,7 +120,7 @@ func (t *TransformSynapse) FireWithInputDetails(ctx context.Context, input Trans
 		temperature = t.defaults.Temperature
 	}
 	if temperature == 0 {
-		temperature = 0.3
+		temperature = DefaultTemperatureCreative
 	}
 
 	// Execute through service
@@ -176,8 +181,7 @@ func (t *TransformSynapse) buildPrompt(input TransformInput) *Prompt {
 		prompt.Examples = examples
 	}
 
-	// Build schema using sentinel
-	prompt.Schema = generateJSONSchema[TransformResponse]()
+	prompt.Schema = t.schema
 
 	// Build constraints
 	constraints := []string{

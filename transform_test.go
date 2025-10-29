@@ -373,6 +373,7 @@ func TestTransformSynapse_buildPrompt(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		synapse := &TransformSynapse{
 			instruction: "summarize",
+			schema:      generateJSONSchema[TransformResponse](),
 		}
 
 		input := TransformInput{
@@ -394,6 +395,7 @@ func TestTransformSynapse_buildPrompt(t *testing.T) {
 	t.Run("reliability", func(t *testing.T) {
 		synapse := &TransformSynapse{
 			instruction: "test",
+			schema:      generateJSONSchema[TransformResponse](),
 		}
 
 		input := TransformInput{
@@ -417,6 +419,7 @@ func TestTransformSynapse_buildPrompt(t *testing.T) {
 	t.Run("chaining", func(t *testing.T) {
 		synapse := &TransformSynapse{
 			instruction: "test",
+			schema:      generateJSONSchema[TransformResponse](),
 		}
 
 		input := TransformInput{

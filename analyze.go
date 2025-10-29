@@ -38,12 +38,16 @@ func (r AnalyzeResponse) Validate() error {
 // AnalyzeSynapse analyzes structured data and produces text analysis.
 type AnalyzeSynapse[T any] struct {
 	what     string // What kind of analysis to perform
+	schema   string // Pre-computed JSON schema
 	defaults AnalyzeInput[T]
 	service  *Service[AnalyzeResponse]
 }
 
 // Analyze creates a new analysis synapse for structured input.
 func Analyze[T any](what string, provider Provider, opts ...Option) *AnalyzeSynapse[T] {
+	// Generate schema once at construction
+	schema := generateJSONSchema[AnalyzeResponse]()
+
 	// Create terminal pipeline stage that calls the provider
 	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		// Render prompt to string for provider
@@ -66,9 +70,10 @@ func Analyze[T any](what string, provider Provider, opts ...Option) *AnalyzeSyna
 	svc := NewService[AnalyzeResponse](pipeline, "analyze", provider)
 
 	return &AnalyzeSynapse[T]{
-		what: what,
+		what:   what,
+		schema: schema,
 		defaults: AnalyzeInput[T]{
-			Temperature: 0.2, // Lower temperature for consistent analysis
+			Temperature: DefaultTemperatureAnalytical,
 		},
 		service: svc,
 	}
@@ -114,7 +119,7 @@ func (a *AnalyzeSynapse[T]) FireWithInputDetails(ctx context.Context, input Anal
 		temperature = a.defaults.Temperature
 	}
 	if temperature == 0 {
-		temperature = 0.2
+		temperature = DefaultTemperatureAnalytical
 	}
 
 	// Execute through service
@@ -159,10 +164,8 @@ func (a *AnalyzeSynapse[T]) buildPrompt(input AnalyzeInput[T]) *Prompt {
 		Task:    fmt.Sprintf("Analyze: %s", a.what),
 		Input:   string(dataJSON),
 		Context: input.Context,
+		Schema:  a.schema,
 	}
-
-	// Build schema using sentinel
-	prompt.Schema = generateJSONSchema[AnalyzeResponse]()
 
 	// Build constraints
 	constraints := []string{

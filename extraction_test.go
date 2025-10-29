@@ -377,50 +377,6 @@ func TestExtractionSynapse_buildPrompt(t *testing.T) {
 	})
 }
 
-func TestSplitLines(t *testing.T) {
-	t.Run("simple", func(t *testing.T) {
-		result := splitLines("line1\nline2\nline3")
-		if len(result) != 3 {
-			t.Errorf("Expected 3 lines, got %d", len(result))
-		}
-		if result[0] != "line1" {
-			t.Errorf("Expected 'line1', got '%s'", result[0])
-		}
-	})
-
-	t.Run("reliability", func(t *testing.T) {
-		tests := []struct {
-			input    string
-			expected int
-		}{
-			{"single line", 1},
-			{"", 0},
-			{"\n\n", 2},
-			{"line1\n", 1},
-		}
-
-		for _, tt := range tests {
-			result := splitLines(tt.input)
-			if len(result) != tt.expected {
-				t.Errorf("splitLines(%q): expected %d lines, got %d", tt.input, tt.expected, len(result))
-			}
-		}
-	})
-
-	t.Run("chaining", func(t *testing.T) {
-		// Test that splitLines output can be used in prompt examples
-		lines := splitLines("example1\nexample2\nexample3")
-		if len(lines) != 3 {
-			t.Error("Expected 3 lines for examples")
-		}
-		for _, line := range lines {
-			if line == "" {
-				t.Error("Lines should not be empty")
-			}
-		}
-	})
-}
-
 func TestExtract(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()

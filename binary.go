@@ -38,6 +38,7 @@ func (r BinaryResponse) Validate() error {
 // BinarySynapse represents a binary (yes/no) decision synapse.
 type BinarySynapse struct {
 	question string
+	schema   string // Pre-computed JSON schema
 	defaults BinaryInput
 	service  *Service[BinaryResponse]
 }
@@ -45,6 +46,9 @@ type BinarySynapse struct {
 // NewBinary creates a new binary synapse bound to a provider.
 // The synapse is immediately usable and can be enhanced with options.
 func NewBinary(question string, provider Provider, opts ...Option) *BinarySynapse {
+	// Generate schema once at construction
+	schema := generateJSONSchema[BinaryResponse]()
+
 	// Create terminal processor that calls the provider
 	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		// Render prompt to string for provider
@@ -68,6 +72,7 @@ func NewBinary(question string, provider Provider, opts ...Option) *BinarySynaps
 
 	return &BinarySynapse{
 		question: question,
+		schema:   schema,
 		service:  svc,
 	}
 }
@@ -115,7 +120,7 @@ func (b *BinarySynapse) FireWithInput(ctx context.Context, input BinaryInput) (B
 		temperature = b.defaults.Temperature
 	}
 	if temperature == 0 {
-		temperature = 0.1
+		temperature = DefaultTemperatureDeterministic
 	}
 
 	// Execute through service
@@ -154,10 +159,8 @@ func (b *BinarySynapse) buildPrompt(input BinaryInput) *Prompt {
 		Task:    fmt.Sprintf("Determine if %s", b.question),
 		Input:   input.Subject,
 		Context: input.Context,
+		Schema:  b.schema,
 	}
-
-	// Build schema using sentinel
-	prompt.Schema = generateJSONSchema[BinaryResponse]()
 
 	// Build constraints
 	prompt.Constraints = []string{

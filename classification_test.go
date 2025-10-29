@@ -384,6 +384,7 @@ func TestClassificationSynapse_buildPrompt(t *testing.T) {
 		synapse := &ClassificationSynapse{
 			question:   "What is this?",
 			categories: []string{"cat1", "cat2"},
+			schema:     generateJSONSchema[ClassificationResponse](),
 		}
 
 		input := ClassificationInput{
@@ -409,6 +410,7 @@ func TestClassificationSynapse_buildPrompt(t *testing.T) {
 		synapse := &ClassificationSynapse{
 			question:   "Classify",
 			categories: []string{"cat1", "cat2"},
+			schema:     generateJSONSchema[ClassificationResponse](),
 		}
 
 		input := ClassificationInput{
@@ -435,6 +437,7 @@ func TestClassificationSynapse_buildPrompt(t *testing.T) {
 		synapse := &ClassificationSynapse{
 			question:   "Classify",
 			categories: []string{"cat1", "cat2"},
+			schema:     generateJSONSchema[ClassificationResponse](),
 		}
 
 		input := ClassificationInput{

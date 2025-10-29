@@ -41,12 +41,16 @@ func (r ClassificationResponse) Validate() error {
 type ClassificationSynapse struct {
 	question   string
 	categories []string
+	schema     string // Pre-computed JSON schema
 	defaults   ClassificationInput
 	service    *Service[ClassificationResponse]
 }
 
 // NewClassification creates a new classification synapse bound to a provider.
 func NewClassification(question string, categories []string, provider Provider, opts ...Option) *ClassificationSynapse {
+	// Generate schema once at construction
+	schema := generateJSONSchema[ClassificationResponse]()
+
 	// Create terminal processor that calls the provider
 	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		// Render prompt to string for provider
@@ -71,6 +75,7 @@ func NewClassification(question string, categories []string, provider Provider, 
 	return &ClassificationSynapse{
 		question:   question,
 		categories: categories,
+		schema:     schema,
 		service:    svc,
 	}
 }
@@ -116,7 +121,7 @@ func (c *ClassificationSynapse) FireWithInput(ctx context.Context, input Classif
 		temperature = c.defaults.Temperature
 	}
 	if temperature == 0 {
-		temperature = 0.3 // Slightly higher than binary for more nuanced classification
+		temperature = DefaultTemperatureCreative
 	}
 
 	// Execute through service (validation happens in Service.Execute)
@@ -156,10 +161,8 @@ func (c *ClassificationSynapse) buildPrompt(input ClassificationInput) *Prompt {
 		Context:    input.Context,
 		Categories: c.categories,
 		Examples:   input.Examples,
+		Schema:     c.schema,
 	}
-
-	// Build schema using sentinel
-	prompt.Schema = generateJSONSchema[ClassificationResponse]()
 
 	// Build constraints
 	prompt.Constraints = []string{

@@ -81,12 +81,16 @@ func (s SentimentScores) Validate() error {
 // SentimentSynapse represents a sentiment analysis synapse.
 type SentimentSynapse struct {
 	analysisType string // What kind of sentiment to analyze
+	schema       string // Pre-computed JSON schema
 	defaults     SentimentInput
 	service      *Service[SentimentResponse]
 }
 
 // NewSentiment creates a new sentiment analysis synapse bound to a provider.
 func NewSentiment(analysisType string, provider Provider, opts ...Option) *SentimentSynapse {
+	// Generate schema once at construction
+	schema := generateJSONSchema[SentimentResponse]()
+
 	// Create terminal processor that calls the provider
 	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		// Render prompt to string for provider
@@ -110,6 +114,7 @@ func NewSentiment(analysisType string, provider Provider, opts ...Option) *Senti
 
 	return &SentimentSynapse{
 		analysisType: analysisType,
+		schema:       schema,
 		service:      svc,
 	}
 }
@@ -155,7 +160,7 @@ func (s *SentimentSynapse) FireWithInput(ctx context.Context, input SentimentInp
 		temperature = s.defaults.Temperature
 	}
 	if temperature == 0 {
-		temperature = 0.2 // Low-medium for consistent analysis
+		temperature = DefaultTemperatureAnalytical
 	}
 
 	// Execute through service
@@ -197,10 +202,8 @@ func (s *SentimentSynapse) buildPrompt(input SentimentInput) *Prompt {
 		Input:   input.Text,
 		Context: input.Context,
 		Aspects: input.Aspects,
+		Schema:  s.schema,
 	}
-
-	// Build schema using sentinel
-	prompt.Schema = generateJSONSchema[SentimentResponse]()
 
 	// Build constraints
 	prompt.Constraints = []string{

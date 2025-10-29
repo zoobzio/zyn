@@ -3,6 +3,7 @@ package zyn
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/zoobzio/pipz"
 )
@@ -90,7 +91,7 @@ func (e *ExtractionSynapse[T]) FireWithInput(ctx context.Context, input Extracti
 		temperature = e.defaults.Temperature
 	}
 	if temperature == 0 {
-		temperature = 0.1 // Low temperature for consistent extraction
+		temperature = DefaultTemperatureDeterministic
 	}
 
 	// Execute through service - it handles JSON unmarshaling to T
@@ -130,7 +131,7 @@ func (e *ExtractionSynapse[T]) buildPrompt(input ExtractionInput) *Prompt {
 	if input.Examples != "" {
 		// Split examples by newline
 		lines := []string{}
-		for _, line := range splitLines(input.Examples) {
+		for _, line := range strings.Split(input.Examples, "\n") {
 			if line != "" {
 				lines = append(lines, line)
 			}
@@ -150,24 +151,6 @@ func (e *ExtractionSynapse[T]) buildPrompt(input ExtractionInput) *Prompt {
 	}
 
 	return prompt
-}
-
-// splitLines splits a string by newlines.
-func splitLines(s string) []string {
-	var lines []string
-	current := ""
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\n' {
-			lines = append(lines, current)
-			current = ""
-		} else {
-			current += string(s[i])
-		}
-	}
-	if current != "" {
-		lines = append(lines, current)
-	}
-	return lines
 }
 
 // Extract creates a new extraction synapse bound to a provider.

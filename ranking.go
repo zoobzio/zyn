@@ -40,12 +40,16 @@ func (r RankingResponse) Validate() error {
 // RankingSynapse represents a ranking/sorting synapse.
 type RankingSynapse struct {
 	criteria string
+	schema   string // Pre-computed JSON schema
 	defaults RankingInput
 	service  *Service[RankingResponse]
 }
 
 // NewRanking creates a new ranking synapse bound to a provider.
 func NewRanking(criteria string, provider Provider, opts ...Option) *RankingSynapse {
+	// Generate schema once at construction
+	schema := generateJSONSchema[RankingResponse]()
+
 	// Create terminal processor that calls the provider
 	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		// Render prompt to string for provider
@@ -69,6 +73,7 @@ func NewRanking(criteria string, provider Provider, opts ...Option) *RankingSyna
 
 	return &RankingSynapse{
 		criteria: criteria,
+		schema:   schema,
 		service:  svc,
 	}
 }
@@ -114,7 +119,7 @@ func (r *RankingSynapse) FireWithInput(ctx context.Context, input RankingInput) 
 		temperature = r.defaults.Temperature
 	}
 	if temperature == 0 {
-		temperature = 0.2 // Low temperature for consistent ranking
+		temperature = DefaultTemperatureAnalytical
 	}
 
 	// Execute through service (validation happens in Service.Execute)
@@ -150,6 +155,7 @@ func (r *RankingSynapse) buildPrompt(input RankingInput) *Prompt {
 		Task:    fmt.Sprintf("Rank by %s", r.criteria),
 		Items:   input.Items,
 		Context: input.Context,
+		Schema:  r.schema,
 	}
 
 	// Add examples if provided
@@ -158,9 +164,6 @@ func (r *RankingSynapse) buildPrompt(input RankingInput) *Prompt {
 			"rankings": input.Examples,
 		}
 	}
-
-	// Build schema using sentinel
-	prompt.Schema = generateJSONSchema[RankingResponse]()
 
 	// Build constraints
 	if input.TopN > 0 {

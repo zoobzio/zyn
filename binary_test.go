@@ -302,6 +302,7 @@ func TestBinarySynapse_buildPrompt(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
 		synapse := &BinarySynapse{
 			question: "Is this valid?",
+			schema:   generateJSONSchema[BinaryResponse](),
 		}
 
 		input := BinaryInput{
@@ -323,6 +324,7 @@ func TestBinarySynapse_buildPrompt(t *testing.T) {
 	t.Run("with_context", func(t *testing.T) {
 		synapse := &BinarySynapse{
 			question: "test",
+			schema:   generateJSONSchema[BinaryResponse](),
 		}
 
 		input := BinaryInput{
