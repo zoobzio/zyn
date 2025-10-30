@@ -63,7 +63,7 @@ func (s *Service[T]) Execute(ctx context.Context, prompt *Prompt, temperature fl
 	}
 
 	// Emit request.started hook
-	capitan.Emit(ctx, RequestStarted,
+	capitan.Info(ctx, RequestStarted,
 		RequestIDKey.Field(requestID),
 		SynapseTypeKey.Field(s.synapseType),
 		ProviderKey.Field(s.providerName),
@@ -76,7 +76,7 @@ func (s *Service[T]) Execute(ctx context.Context, prompt *Prompt, temperature fl
 	processed, err := s.pipeline.Process(ctx, request)
 	if err != nil {
 		// Emit request.failed hook
-		capitan.Emit(ctx, RequestFailed,
+		capitan.Error(ctx, RequestFailed,
 			RequestIDKey.Field(requestID),
 			SynapseTypeKey.Field(s.synapseType),
 			ProviderKey.Field(s.providerName),
@@ -93,7 +93,7 @@ func (s *Service[T]) Execute(ctx context.Context, prompt *Prompt, temperature fl
 
 	if parseErr := json.Unmarshal([]byte(processed.Response), &result); parseErr != nil {
 		// Emit response.failed hook
-		capitan.Emit(ctx, ResponseParseFailed,
+		capitan.Error(ctx, ResponseParseFailed,
 			RequestIDKey.Field(requestID),
 			SynapseTypeKey.Field(s.synapseType),
 			ProviderKey.Field(s.providerName),
@@ -108,7 +108,7 @@ func (s *Service[T]) Execute(ctx context.Context, prompt *Prompt, temperature fl
 	// Validate response (T is constrained to Validator)
 	if validationErr := result.Validate(); validationErr != nil {
 		// Emit response.failed hook
-		capitan.Emit(ctx, ResponseParseFailed,
+		capitan.Error(ctx, ResponseParseFailed,
 			RequestIDKey.Field(requestID),
 			SynapseTypeKey.Field(s.synapseType),
 			ProviderKey.Field(s.providerName),
@@ -128,7 +128,7 @@ func (s *Service[T]) Execute(ctx context.Context, prompt *Prompt, temperature fl
 	}
 
 	// Emit request.completed hook
-	capitan.Emit(ctx, RequestCompleted,
+	capitan.Info(ctx, RequestCompleted,
 		RequestIDKey.Field(requestID),
 		SynapseTypeKey.Field(s.synapseType),
 		ProviderKey.Field(s.providerName),

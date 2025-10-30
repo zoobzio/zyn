@@ -63,7 +63,7 @@ func (p *Provider) Call(ctx context.Context, prompt string, temperature float32)
 	startTime := time.Now()
 
 	// Emit provider.call.started hook
-	capitan.Emit(ctx, zyn.ProviderCallStarted,
+	capitan.Info(ctx, zyn.ProviderCallStarted,
 		zyn.ProviderKey.Field(p.name),
 		zyn.ModelKey.Field(p.model),
 	)
@@ -132,7 +132,7 @@ func (p *Provider) Call(ctx context.Context, prompt string, temperature float32)
 				fields = append(fields, zyn.APIErrorCodeKey.Field(errorResp.Error.Code))
 			}
 
-			capitan.Emit(ctx, zyn.ProviderCallFailed, fields...)
+			capitan.Error(ctx, zyn.ProviderCallFailed, fields...)
 
 			// Check for rate limit
 			if resp.StatusCode == http.StatusTooManyRequests {
@@ -142,7 +142,7 @@ func (p *Provider) Call(ctx context.Context, prompt string, temperature float32)
 		}
 
 		fields = append(fields, zyn.ErrorKey.Field(fmt.Sprintf("status %d", resp.StatusCode)))
-		capitan.Emit(ctx, zyn.ProviderCallFailed, fields...)
+		capitan.Error(ctx, zyn.ProviderCallFailed, fields...)
 		return "", fmt.Errorf("openai error: status %d", resp.StatusCode)
 	}
 
@@ -176,7 +176,7 @@ func (p *Provider) Call(ctx context.Context, prompt string, temperature float32)
 		fields = append(fields, zyn.ResponseFinishReasonKey.Field(completionResp.Choices[0].FinishReason))
 	}
 
-	capitan.Emit(ctx, zyn.ProviderCallCompleted, fields...)
+	capitan.Info(ctx, zyn.ProviderCallCompleted, fields...)
 
 	return completionResp.Choices[0].Message.Content, nil
 }
