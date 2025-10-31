@@ -3,14 +3,14 @@ package zyn
 import "github.com/zoobzio/capitan"
 
 // Signals for hook events.
-const (
-	RequestStarted        = capitan.Signal("llm.request.started")
-	RequestCompleted      = capitan.Signal("llm.request.completed")
-	RequestFailed         = capitan.Signal("llm.request.failed")
-	ProviderCallStarted   = capitan.Signal("llm.provider.call.started")
-	ProviderCallCompleted = capitan.Signal("llm.provider.call.completed")
-	ProviderCallFailed    = capitan.Signal("llm.provider.call.failed")
-	ResponseParseFailed   = capitan.Signal("llm.response.failed")
+var (
+	RequestStarted        = capitan.NewSignal("llm.request.started", "LLM synapse request initiated with task, input, and configuration")
+	RequestCompleted      = capitan.NewSignal("llm.request.completed", "LLM synapse request succeeded with parsed output and raw response")
+	RequestFailed         = capitan.NewSignal("llm.request.failed", "LLM synapse request failed with error details and context")
+	ProviderCallStarted   = capitan.NewSignal("llm.provider.call.started", "LLM provider HTTP call initiated with model and parameters")
+	ProviderCallCompleted = capitan.NewSignal("llm.provider.call.completed", "LLM provider HTTP call succeeded with token usage and timing metrics")
+	ProviderCallFailed    = capitan.NewSignal("llm.provider.call.failed", "LLM provider HTTP call failed with status code and API error details")
+	ResponseParseFailed   = capitan.NewSignal("llm.response.failed", "LLM response parsing failed with validation or JSON decode error")
 )
 
 // Keys for hook event fields.
