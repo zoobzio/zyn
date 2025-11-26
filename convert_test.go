@@ -24,7 +24,10 @@ func (SimpleOutput) Validate() error {
 func TestConvert(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Convert[SimpleInput, SimpleOutput]("convert data", provider)
+		synapse, err := Convert[SimpleInput, SimpleOutput]("convert data", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Convert wrapper returned nil")
@@ -33,16 +36,19 @@ func TestConvert(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Convert[SimpleInput, SimpleOutput]("convert data", provider,
+		synapse, err := Convert[SimpleInput, SimpleOutput]("convert data", provider,
 			WithRetry(3),
 			WithTimeout(10*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Convert wrapper with options returned nil")
 		}
 
 		ctx := context.Background()
-		_, err := synapse.Fire(ctx, SimpleInput{Value: 42, Name: "test"})
+		_, err = synapse.Fire(ctx, NewSession(), SimpleInput{Value: 42, Name: "test"})
 		if err != nil {
 			t.Errorf("Convert synapse Fire failed: %v", err)
 		}
@@ -50,10 +56,13 @@ func TestConvert(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"count": 100, "label": "converted", "active": true}`)
-		synapse := Convert[SimpleInput, SimpleOutput]("convert data", provider)
+		synapse, err := Convert[SimpleInput, SimpleOutput]("convert data", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, SimpleInput{Value: 42, Name: "test"})
+		result, err := synapse.Fire(ctx, NewSession(), SimpleInput{Value: 42, Name: "test"})
 		if err != nil {
 			t.Fatalf("Convert with chaining failed: %v", err)
 		}
@@ -66,7 +75,10 @@ func TestConvert(t *testing.T) {
 func TestConvertSynapse_GetPipeline(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Convert[SimpleInput, SimpleOutput]("test", provider)
+		synapse, err := Convert[SimpleInput, SimpleOutput]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		pipeline := synapse.GetPipeline()
 		if pipeline == nil {
@@ -76,7 +88,10 @@ func TestConvertSynapse_GetPipeline(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Convert[SimpleInput, SimpleOutput]("test", provider, WithRetry(3))
+		synapse, err := Convert[SimpleInput, SimpleOutput]("test", provider, WithRetry(3))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		pipeline := synapse.GetPipeline()
 		if pipeline == nil {
@@ -86,7 +101,10 @@ func TestConvertSynapse_GetPipeline(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Convert[SimpleInput, SimpleOutput]("test", provider)
+		synapse, err := Convert[SimpleInput, SimpleOutput]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		pipeline := synapse.GetPipeline()
 		if pipeline == nil {
@@ -96,7 +114,7 @@ func TestConvertSynapse_GetPipeline(t *testing.T) {
 		ctx := context.Background()
 		prompt := &Prompt{Task: "test", Input: "test", Schema: "{}"}
 		req := &SynapseRequest{Prompt: prompt, Temperature: 0.5}
-		_, err := pipeline.Process(ctx, req)
+		_, err = pipeline.Process(ctx, req)
 		if err != nil {
 			t.Errorf("Pipeline processing failed: %v", err)
 		}
@@ -106,10 +124,13 @@ func TestConvertSynapse_GetPipeline(t *testing.T) {
 func TestConvertSynapse_Fire(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"count": 42, "label": "test", "active": true}`)
-		synapse := Convert[SimpleInput, SimpleOutput]("convert data", provider)
+		synapse, err := Convert[SimpleInput, SimpleOutput]("convert data", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, SimpleInput{Value: 10, Name: "input"})
+		result, err := synapse.Fire(ctx, NewSession(), SimpleInput{Value: 10, Name: "input"})
 		if err != nil {
 			t.Fatalf("Fire failed: %v", err)
 		}
@@ -120,12 +141,15 @@ func TestConvertSynapse_Fire(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"count": 1, "label": "test", "active": false}`)
-		synapse := Convert[SimpleInput, SimpleOutput]("test", provider,
+		synapse, err := Convert[SimpleInput, SimpleOutput]("test", provider,
 			WithRetry(2),
 			WithTimeout(5*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, SimpleInput{Value: 1, Name: "test"})
+		result, err := synapse.Fire(ctx, NewSession(), SimpleInput{Value: 1, Name: "test"})
 		if err != nil {
 			t.Fatalf("Fire with reliability options failed: %v", err)
 		}
@@ -137,13 +161,19 @@ func TestConvertSynapse_Fire(t *testing.T) {
 	t.Run("chaining", func(t *testing.T) {
 		failing := NewMockProviderWithError("primary failed")
 		fallbackProvider := NewMockProviderWithResponse(`{"count": 99, "label": "fallback", "active": true}`)
-		fallbackSynapse := Convert[SimpleInput, SimpleOutput]("test", fallbackProvider)
+		fallbackSynapse, err := Convert[SimpleInput, SimpleOutput]("test", fallbackProvider)
+		if err != nil {
+			t.Fatalf("failed to create fallback synapse: %v", err)
+		}
 
-		synapse := Convert[SimpleInput, SimpleOutput]("test", failing,
+		synapse, err := Convert[SimpleInput, SimpleOutput]("test", failing,
 			WithFallback(fallbackSynapse))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, SimpleInput{Value: 1, Name: "test"})
+		result, err := synapse.Fire(ctx, NewSession(), SimpleInput{Value: 1, Name: "test"})
 		if err != nil {
 			t.Fatalf("Fire with fallback failed: %v", err)
 		}
@@ -156,14 +186,17 @@ func TestConvertSynapse_Fire(t *testing.T) {
 func TestConvertSynapse_FireWithInput(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"count": 50, "label": "converted", "active": true}`)
-		synapse := Convert[SimpleInput, SimpleOutput]("test", provider)
+		synapse, err := Convert[SimpleInput, SimpleOutput]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := ConvertInput[SimpleInput]{
 			Data:    SimpleInput{Value: 10, Name: "test"},
 			Context: "test context",
 		}
-		result, err := synapse.FireWithInput(ctx, input)
+		result, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput failed: %v", err)
 		}
@@ -174,15 +207,18 @@ func TestConvertSynapse_FireWithInput(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"count": 1, "label": "test", "active": true}`)
-		synapse := Convert[SimpleInput, SimpleOutput]("test", provider,
+		synapse, err := Convert[SimpleInput, SimpleOutput]("test", provider,
 			WithCircuitBreaker(5, 30*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := ConvertInput[SimpleInput]{
 			Data:        SimpleInput{Value: 1, Name: "test"},
 			Temperature: 0.3,
 		}
-		result, err := synapse.FireWithInput(ctx, input)
+		result, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput with circuit breaker failed: %v", err)
 		}
@@ -197,7 +233,10 @@ func TestConvertSynapse_FireWithInput(t *testing.T) {
 			Context: "default context",
 			Rules:   "default rules",
 		}
-		synapse := Convert[SimpleInput, SimpleOutput]("test", provider)
+		synapse, err := Convert[SimpleInput, SimpleOutput]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 		synapse.defaults = defaults
 
 		ctx := context.Background()
@@ -205,7 +244,7 @@ func TestConvertSynapse_FireWithInput(t *testing.T) {
 			Data:  SimpleInput{Value: 42, Name: "test"},
 			Rules: "override rules",
 		}
-		result, err := synapse.FireWithInput(ctx, input)
+		result, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput with defaults merge failed: %v", err)
 		}
@@ -218,7 +257,10 @@ func TestConvertSynapse_FireWithInput(t *testing.T) {
 func TestConvertSynapse_mergeInputs(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Convert[SimpleInput, SimpleOutput]("test", provider)
+		synapse, err := Convert[SimpleInput, SimpleOutput]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 		synapse.defaults = ConvertInput[SimpleInput]{
 			Context: "default context",
 		}
@@ -238,7 +280,10 @@ func TestConvertSynapse_mergeInputs(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Convert[SimpleInput, SimpleOutput]("test", provider)
+		synapse, err := Convert[SimpleInput, SimpleOutput]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 		synapse.defaults = ConvertInput[SimpleInput]{
 			Context:     "default",
 			Temperature: 0.5,
@@ -261,7 +306,10 @@ func TestConvertSynapse_mergeInputs(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Convert[SimpleInput, SimpleOutput]("test", provider)
+		synapse, err := Convert[SimpleInput, SimpleOutput]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 		synapse.defaults = ConvertInput[SimpleInput]{
 			Context: "default",
 			Rules:   "default rules",
@@ -285,7 +333,10 @@ func TestConvertSynapse_mergeInputs(t *testing.T) {
 func TestConvertSynapse_buildPrompt(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Convert[SimpleInput, SimpleOutput]("convert data", provider)
+		synapse, err := Convert[SimpleInput, SimpleOutput]("convert data", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		input := ConvertInput[SimpleInput]{
 			Data: SimpleInput{Value: 42, Name: "test"},
@@ -305,7 +356,10 @@ func TestConvertSynapse_buildPrompt(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Convert[SimpleInput, SimpleOutput]("test", provider)
+		synapse, err := Convert[SimpleInput, SimpleOutput]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		input := ConvertInput[SimpleInput]{
 			Data:    SimpleInput{Value: 1, Name: "test"},
@@ -324,7 +378,10 @@ func TestConvertSynapse_buildPrompt(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Convert[SimpleInput, SimpleOutput]("test", provider)
+		synapse, err := Convert[SimpleInput, SimpleOutput]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		input := ConvertInput[SimpleInput]{
 			Data: SimpleInput{Value: 42, Name: "test"},

@@ -45,39 +45,28 @@ type TransformSynapse struct {
 }
 
 // Transform creates a new text transformation synapse.
-func Transform(instruction string, provider Provider, opts ...Option) *TransformSynapse {
+// Returns an error if the JSON schema cannot be generated.
+func Transform(instruction string, provider Provider, opts ...Option) (*TransformSynapse, error) {
 	// Generate schema once at construction
-	schema := generateJSONSchema[TransformResponse]()
-
-	// Create terminal pipeline stage that calls the provider
-	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
-		// Render prompt to string for provider
-		promptStr := req.Prompt.Render()
-		response, err := provider.Call(ctx, promptStr, req.Temperature)
-		if err != nil {
-			return req, err
-		}
-		req.Response = response
-		return req, nil
-	})
+	schema, err := generateJSONSchema[TransformResponse]()
+	if err != nil {
+		return nil, fmt.Errorf("transform synapse: %w", err)
+	}
 
 	// Apply options to build pipeline
-	var pipeline pipz.Chainable[*SynapseRequest] = terminal
+	var pipeline pipz.Chainable[*SynapseRequest] = NewTerminal(provider)
 	for _, opt := range opts {
 		pipeline = opt(pipeline)
 	}
 
-	// Create service with final pipeline
-	svc := NewService[TransformResponse](pipeline, "transform", provider)
+	// Create service with final pipeline and default temperature
+	svc := NewService[TransformResponse](pipeline, "transform", provider, DefaultTemperatureCreative)
 
 	return &TransformSynapse{
 		instruction: instruction,
 		schema:      schema,
-		defaults: TransformInput{
-			Temperature: DefaultTemperatureCreative,
-		},
-		service: svc,
-	}
+		service:     svc,
+	}, nil
 }
 
 // GetPipeline returns the underlying pipeline.
@@ -86,20 +75,20 @@ func (t *TransformSynapse) GetPipeline() pipz.Chainable[*SynapseRequest] {
 }
 
 // Fire performs the transformation with a simple string input.
-func (t *TransformSynapse) Fire(ctx context.Context, text string) (string, error) {
+func (t *TransformSynapse) Fire(ctx context.Context, session *Session, text string) (string, error) {
 	input := TransformInput{Text: text}
-	return t.FireWithInput(ctx, input)
+	return t.FireWithInput(ctx, session, input)
 }
 
 // FireWithDetails performs the transformation and returns detailed response.
-func (t *TransformSynapse) FireWithDetails(ctx context.Context, text string) (*TransformResponse, error) {
+func (t *TransformSynapse) FireWithDetails(ctx context.Context, session *Session, text string) (*TransformResponse, error) {
 	input := TransformInput{Text: text}
-	return t.FireWithInputDetails(ctx, input)
+	return t.FireWithInputDetails(ctx, session, input)
 }
 
 // FireWithInput performs the transformation with rich input.
-func (t *TransformSynapse) FireWithInput(ctx context.Context, input TransformInput) (string, error) {
-	response, err := t.FireWithInputDetails(ctx, input)
+func (t *TransformSynapse) FireWithInput(ctx context.Context, session *Session, input TransformInput) (string, error) {
+	response, err := t.FireWithInputDetails(ctx, session, input)
 	if err != nil {
 		return "", err
 	}
@@ -107,24 +96,15 @@ func (t *TransformSynapse) FireWithInput(ctx context.Context, input TransformInp
 }
 
 // FireWithInputDetails performs the transformation and returns full details.
-func (t *TransformSynapse) FireWithInputDetails(ctx context.Context, input TransformInput) (*TransformResponse, error) {
+func (t *TransformSynapse) FireWithInputDetails(ctx context.Context, session *Session, input TransformInput) (*TransformResponse, error) {
 	// Merge defaults with user input
 	merged := t.mergeInputs(input)
 
 	// Build prompt
 	prompt := t.buildPrompt(merged)
 
-	// Determine temperature
-	temperature := merged.Temperature
-	if temperature == 0 && t.defaults.Temperature != 0 {
-		temperature = t.defaults.Temperature
-	}
-	if temperature == 0 {
-		temperature = DefaultTemperatureCreative
-	}
-
-	// Execute through service
-	response, err := t.service.Execute(ctx, prompt, temperature)
+	// Execute through service with session (service handles temperature fallback)
+	response, err := t.service.Execute(ctx, session, prompt, merged.Temperature)
 	if err != nil {
 		return nil, fmt.Errorf("transform failed: %w", err)
 	}
@@ -156,7 +136,7 @@ func (t *TransformSynapse) mergeInputs(input TransformInput) TransformInput {
 	if input.MaxLength > 0 {
 		merged.MaxLength = input.MaxLength
 	}
-	if input.Temperature != 0 {
+	if input.Temperature != 0 && input.Temperature != TemperatureUnset {
 		merged.Temperature = input.Temperature
 	}
 

@@ -39,10 +39,13 @@ func main() {
 	})
 
 	// Create extraction synapse
-	synapse := zyn.Extract[DateExtraction]("all dates and deadlines", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Extract[DateExtraction]("all dates and deadlines", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Extract dates
-	response, err := synapse.FireWithInput(ctx, zyn.ExtractionInput{
+	response, err := synapse.FireWithInput(ctx, zyn.NewSession(), zyn.ExtractionInput{
 		Text: "The project kickoff is scheduled for January 15th. " +
 			"First milestone due by end of February. Final delivery on March 30, 2025.",
 		Examples: "Q4 2024, next Tuesday, 2025-01-15",

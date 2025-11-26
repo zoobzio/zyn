@@ -50,10 +50,13 @@ func main() {
 	})
 
 	// Create convert synapse
-	synapse := zyn.Convert[LegacyUser, ModernUser]("migrate legacy user to modern schema", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Convert[LegacyUser, ModernUser]("migrate legacy user to modern schema", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Convert user data
-	response, err := synapse.FireWithInput(ctx, zyn.ConvertInput[LegacyUser]{
+	response, err := synapse.FireWithInput(ctx, zyn.NewSession(), zyn.ConvertInput[LegacyUser]{
 		Data: LegacyUser{
 			ID:       12345,
 			Name:     "John Doe",

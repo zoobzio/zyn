@@ -26,10 +26,13 @@ func main() {
 	})
 
 	// Create classification synapse
-	synapse := zyn.Classification("content type", []string{"tutorial", "reference", "opinion", "news", "documentation"}, provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Classification("content type", []string{"tutorial", "reference", "opinion", "news", "documentation"}, provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Classify blog post
-	response, err := synapse.FireWithInput(ctx, zyn.ClassificationInput{
+	response, err := synapse.FireWithInput(ctx, zyn.NewSession(), zyn.ClassificationInput{
 		Subject: "In this guide, we'll walk through setting up a Go web server from scratch. " +
 			"You'll learn how to handle HTTP requests, set up routing, and deploy to production.",
 		Context: "Blog post categorization",

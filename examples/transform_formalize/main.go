@@ -26,10 +26,13 @@ func main() {
 	})
 
 	// Create transformation synapse
-	synapse := zyn.Transform("convert to formal business language", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Transform("convert to formal business language", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Transform casual email to formal
-	response, err := synapse.FireWithInputDetails(ctx, zyn.TransformInput{
+	response, err := synapse.FireWithInputDetails(ctx, zyn.NewSession(), zyn.TransformInput{
 		Text:    "Hey! Just wanted to let you know the project is coming along great. We should be done soon.",
 		Context: "Email to executive stakeholder",
 		Style:   "Professional and formal",

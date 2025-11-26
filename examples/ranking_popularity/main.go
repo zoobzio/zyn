@@ -26,10 +26,13 @@ func main() {
 	})
 
 	// Create ranking synapse
-	synapse := zyn.Ranking("by popularity and market demand", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Ranking("by popularity and market demand", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Rank programming languages
-	response, err := synapse.FireWithInput(ctx, zyn.RankingInput{
+	response, err := synapse.FireWithInput(ctx, zyn.NewSession(), zyn.RankingInput{
 		Items:   []string{"Rust", "Python", "Go", "JavaScript", "TypeScript", "Java"},
 		Context: "Consider current industry trends and job market demand",
 	})

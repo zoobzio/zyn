@@ -26,10 +26,13 @@ func main() {
 	})
 
 	// Create binary decision synapse
-	synapse := zyn.Binary("does this contain toxic or harmful content?", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Binary("does this contain toxic or harmful content?", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Check for toxicity
-	response, err := synapse.FireWithInput(ctx, zyn.BinaryInput{
+	response, err := synapse.FireWithInput(ctx, zyn.NewSession(), zyn.BinaryInput{
 		Subject:     "I completely disagree with your point, but I appreciate your perspective.",
 		Context:     "Content moderation for community platform",
 		Temperature: 0.3, // Lower temperature for consistent moderation

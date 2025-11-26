@@ -36,8 +36,11 @@ func TestRequestStartedHook(t *testing.T) {
 	mockProvider := NewMockProviderWithResponse(`{"decision": true, "confidence": 0.9, "reasoning": ["test"]}`)
 
 	// Execute a binary synapse
-	synapse := Binary("test question", mockProvider)
-	_, _ = synapse.Fire(context.Background(), "test input")
+	synapse, err := Binary("test question", mockProvider)
+	if err != nil {
+		t.Fatalf("failed to create synapse: %v", err)
+	}
+	_, _ = synapse.Fire(context.Background(), NewSession(), "test input")
 
 	// Wait for hook with timeout
 	done := make(chan struct{})
@@ -99,8 +102,11 @@ func TestRequestCompletedHook(t *testing.T) {
 	defer listener.Close()
 
 	mockProvider := NewMockProviderWithResponse(`{"decision": true, "confidence": 0.9, "reasoning": ["test"]}`)
-	synapse := Binary("test question", mockProvider)
-	_, _ = synapse.Fire(context.Background(), "test input")
+	synapse, err := Binary("test question", mockProvider)
+	if err != nil {
+		t.Fatalf("failed to create synapse: %v", err)
+	}
+	_, _ = synapse.Fire(context.Background(), NewSession(), "test input")
 
 	// Wait for hook
 	done := make(chan struct{})
@@ -151,8 +157,11 @@ func TestRequestFailedHook(t *testing.T) {
 	defer listener.Close()
 
 	mockProvider := NewMockProviderWithError("simulated error")
-	synapse := Binary("test question", mockProvider)
-	_, err := synapse.Fire(context.Background(), "test input")
+	synapse, err := Binary("test question", mockProvider)
+	if err != nil {
+		t.Fatalf("failed to create synapse: %v", err)
+	}
+	_, err = synapse.Fire(context.Background(), NewSession(), "test input")
 
 	if err == nil {
 		t.Fatal("Expected error but got none")
@@ -196,8 +205,11 @@ func TestResponseParseFailedHook(t *testing.T) {
 
 	// Provide invalid JSON response
 	mockProvider := NewMockProviderWithResponse(`{invalid json`)
-	synapse := Binary("test question", mockProvider)
-	_, err := synapse.Fire(context.Background(), "test input")
+	synapse, err := Binary("test question", mockProvider)
+	if err != nil {
+		t.Fatalf("failed to create synapse: %v", err)
+	}
+	_, err = synapse.Fire(context.Background(), NewSession(), "test input")
 
 	if err == nil {
 		t.Fatal("Expected parse error but got none")
@@ -431,8 +443,11 @@ func TestHooksWithObserver(t *testing.T) {
 	defer observer.Close()
 
 	mockProvider := NewMockProviderWithResponse(`{"decision": true, "confidence": 0.9, "reasoning": ["test"]}`)
-	synapse := Binary("test question", mockProvider)
-	_, _ = synapse.Fire(context.Background(), "test input")
+	synapse, err := Binary("test question", mockProvider)
+	if err != nil {
+		t.Fatalf("failed to create synapse: %v", err)
+	}
+	_, _ = synapse.Fire(context.Background(), NewSession(), "test input")
 
 	// Wait for hooks
 	done := make(chan struct{})

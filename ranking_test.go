@@ -9,7 +9,10 @@ import (
 func TestNewRanking(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewRanking("quality", provider)
+		synapse, err := NewRanking("quality", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Expected synapse to be created")
@@ -21,9 +24,12 @@ func TestNewRanking(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewRanking("quality", provider,
+		synapse, err := NewRanking("quality", provider,
 			WithRetry(3),
 			WithTimeout(10*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Expected synapse with reliability options to be created")
@@ -33,10 +39,16 @@ func TestNewRanking(t *testing.T) {
 	t.Run("chaining", func(t *testing.T) {
 		primary := NewMockProviderWithName("primary")
 		fallback := NewMockProviderWithName("fallback")
-		fallbackSynapse := NewRanking("quality", fallback)
+		fallbackSynapse, err := NewRanking("quality", fallback)
+		if err != nil {
+			t.Fatalf("failed to create fallback synapse: %v", err)
+		}
 
-		synapse := NewRanking("quality", primary,
+		synapse, err := NewRanking("quality", primary,
 			WithFallback(fallbackSynapse))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Expected synapse with fallback to be created")
@@ -47,7 +59,10 @@ func TestNewRanking(t *testing.T) {
 func TestRankingSynapse_GetPipeline(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewRanking("test", provider)
+		synapse, err := NewRanking("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		pipeline := synapse.GetPipeline()
 		if pipeline == nil {
@@ -57,7 +72,10 @@ func TestRankingSynapse_GetPipeline(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewRanking("test", provider, WithRetry(3))
+		synapse, err := NewRanking("test", provider, WithRetry(3))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		pipeline := synapse.GetPipeline()
 		if pipeline == nil {
@@ -67,7 +85,10 @@ func TestRankingSynapse_GetPipeline(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewRanking("test", provider)
+		synapse, err := NewRanking("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		pipeline := synapse.GetPipeline()
 		if pipeline == nil {
@@ -77,7 +98,7 @@ func TestRankingSynapse_GetPipeline(t *testing.T) {
 		ctx := context.Background()
 		prompt := &Prompt{Task: "test", Input: "test", Schema: "{}"}
 		req := &SynapseRequest{Prompt: prompt, Temperature: 0.5}
-		_, err := pipeline.Process(ctx, req)
+		_, err = pipeline.Process(ctx, req)
 		if err != nil {
 			t.Errorf("Pipeline processing failed: %v", err)
 		}
@@ -87,7 +108,10 @@ func TestRankingSynapse_GetPipeline(t *testing.T) {
 func TestRankingSynapse_WithDefaults(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewRanking("test", provider)
+		synapse, err := NewRanking("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		defaults := RankingInput{
 			Context:     "default context",
@@ -105,7 +129,10 @@ func TestRankingSynapse_WithDefaults(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewRanking("test", provider, WithRetry(3))
+		synapse, err := NewRanking("test", provider, WithRetry(3))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		defaults := RankingInput{Temperature: 0.7}
 		synapseWithDefaults := synapse.WithDefaults(defaults)
@@ -117,11 +144,14 @@ func TestRankingSynapse_WithDefaults(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"ranked": ["item1", "item2"], "confidence": 0.9, "reasoning": ["test"]}`)
-		synapse := NewRanking("test", provider).
-			WithDefaults(RankingInput{Context: "default", Temperature: 0.5})
+		synapse, err := NewRanking("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
+		synapse = synapse.WithDefaults(RankingInput{Context: "default", Temperature: 0.5})
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, []string{"item2", "item1"})
+		result, err := synapse.Fire(ctx, NewSession(), []string{"item2", "item1"})
 		if err != nil {
 			t.Errorf("Fire failed with defaults: %v", err)
 		}
@@ -134,10 +164,13 @@ func TestRankingSynapse_WithDefaults(t *testing.T) {
 func TestRankingSynapse_Fire(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"ranked": ["best", "good", "okay"], "confidence": 0.9, "reasoning": ["test"]}`)
-		synapse := NewRanking("quality", provider)
+		synapse, err := NewRanking("quality", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, []string{"okay", "best", "good"})
+		result, err := synapse.Fire(ctx, NewSession(), []string{"okay", "best", "good"})
 		if err != nil {
 			t.Fatalf("Fire failed: %v", err)
 		}
@@ -151,12 +184,15 @@ func TestRankingSynapse_Fire(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"ranked": ["a", "b"], "confidence": 0.9, "reasoning": ["test"]}`)
-		synapse := NewRanking("test", provider,
+		synapse, err := NewRanking("test", provider,
 			WithRetry(2),
 			WithTimeout(5*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, []string{"b", "a"})
+		result, err := synapse.Fire(ctx, NewSession(), []string{"b", "a"})
 		if err != nil {
 			t.Fatalf("Fire with reliability options failed: %v", err)
 		}
@@ -168,13 +204,19 @@ func TestRankingSynapse_Fire(t *testing.T) {
 	t.Run("chaining", func(t *testing.T) {
 		failing := NewMockProviderWithError("primary failed")
 		fallbackProvider := NewMockProviderWithResponse(`{"ranked": ["fallback"], "confidence": 0.9, "reasoning": ["test"]}`)
-		fallbackSynapse := NewRanking("test", fallbackProvider)
+		fallbackSynapse, err := NewRanking("test", fallbackProvider)
+		if err != nil {
+			t.Fatalf("failed to create fallback synapse: %v", err)
+		}
 
-		synapse := NewRanking("test", failing,
+		synapse, err := NewRanking("test", failing,
 			WithFallback(fallbackSynapse))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, []string{"fallback"})
+		result, err := synapse.Fire(ctx, NewSession(), []string{"fallback"})
 		if err != nil {
 			t.Fatalf("Fire with fallback failed: %v", err)
 		}
@@ -187,10 +229,13 @@ func TestRankingSynapse_Fire(t *testing.T) {
 func TestRankingSynapse_FireWithDetails(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"ranked": ["item1", "item2"], "confidence": 0.95, "reasoning": ["high quality", "good"]}`)
-		synapse := NewRanking("quality", provider)
+		synapse, err := NewRanking("quality", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		response, err := synapse.FireWithDetails(ctx, []string{"item2", "item1"})
+		response, err := synapse.FireWithDetails(ctx, NewSession(), []string{"item2", "item1"})
 		if err != nil {
 			t.Fatalf("FireWithDetails failed: %v", err)
 		}
@@ -207,12 +252,15 @@ func TestRankingSynapse_FireWithDetails(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"ranked": ["a"], "confidence": 0.9, "reasoning": ["test"]}`)
-		synapse := NewRanking("test", provider,
+		synapse, err := NewRanking("test", provider,
 			WithRetry(3),
 			WithBackoff(2, 10*time.Millisecond))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		response, err := synapse.FireWithDetails(ctx, []string{"a"})
+		response, err := synapse.FireWithDetails(ctx, NewSession(), []string{"a"})
 		if err != nil {
 			t.Fatalf("FireWithDetails with backoff failed: %v", err)
 		}
@@ -223,11 +271,14 @@ func TestRankingSynapse_FireWithDetails(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"ranked": ["x", "y"], "confidence": 0.9, "reasoning": ["test"]}`)
-		synapse := NewRanking("test", provider).
-			WithDefaults(RankingInput{Context: "test context"})
+		synapse, err := NewRanking("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
+		synapse = synapse.WithDefaults(RankingInput{Context: "test context"})
 
 		ctx := context.Background()
-		response, err := synapse.FireWithDetails(ctx, []string{"y", "x"})
+		response, err := synapse.FireWithDetails(ctx, NewSession(), []string{"y", "x"})
 		if err != nil {
 			t.Fatalf("FireWithDetails with defaults failed: %v", err)
 		}
@@ -240,14 +291,17 @@ func TestRankingSynapse_FireWithDetails(t *testing.T) {
 func TestRankingSynapse_FireWithInput(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"ranked": ["item1", "item2"], "confidence": 0.9, "reasoning": ["test"]}`)
-		synapse := NewRanking("quality", provider)
+		synapse, err := NewRanking("quality", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := RankingInput{
 			Items:   []string{"item2", "item1"},
 			Context: "test context",
 		}
-		response, err := synapse.FireWithInput(ctx, input)
+		response, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput failed: %v", err)
 		}
@@ -258,15 +312,18 @@ func TestRankingSynapse_FireWithInput(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"ranked": ["a"], "confidence": 0.9, "reasoning": ["test"]}`)
-		synapse := NewRanking("test", provider,
+		synapse, err := NewRanking("test", provider,
 			WithCircuitBreaker(5, 30*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := RankingInput{
 			Items:       []string{"a"},
 			Temperature: 0.3,
 		}
-		response, err := synapse.FireWithInput(ctx, input)
+		response, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput with circuit breaker failed: %v", err)
 		}
@@ -281,14 +338,18 @@ func TestRankingSynapse_FireWithInput(t *testing.T) {
 			Context:  "default context",
 			Examples: []string{"example1", "example2"},
 		}
-		synapse := NewRanking("test", provider).WithDefaults(defaults)
+		synapse, err := NewRanking("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
+		synapse = synapse.WithDefaults(defaults)
 
 		ctx := context.Background()
 		input := RankingInput{
 			Items:    []string{"y", "x"},
 			Examples: []string{"override"},
 		}
-		response, err := synapse.FireWithInput(ctx, input)
+		response, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput with defaults merge failed: %v", err)
 		}
@@ -301,7 +362,10 @@ func TestRankingSynapse_FireWithInput(t *testing.T) {
 func TestRankingSynapse_mergeInputs(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewRanking("test", provider)
+		synapse, err := NewRanking("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 		synapse.defaults = RankingInput{
 			Context: "default context",
 		}
@@ -321,7 +385,10 @@ func TestRankingSynapse_mergeInputs(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewRanking("test", provider)
+		synapse, err := NewRanking("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 		synapse.defaults = RankingInput{
 			Context:     "default",
 			Temperature: 0.5,
@@ -344,7 +411,10 @@ func TestRankingSynapse_mergeInputs(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewRanking("test", provider)
+		synapse, err := NewRanking("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 		synapse.defaults = RankingInput{
 			Context:  "default",
 			Examples: []string{"example1"},
@@ -373,7 +443,10 @@ func TestRankingSynapse_mergeInputs(t *testing.T) {
 func TestRankingSynapse_buildPrompt(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewRanking("quality", provider)
+		synapse, err := NewRanking("quality", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		input := RankingInput{
 			Items: []string{"item1", "item2"},
@@ -393,7 +466,10 @@ func TestRankingSynapse_buildPrompt(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewRanking("test", provider)
+		synapse, err := NewRanking("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		input := RankingInput{
 			Items:    []string{"a", "b"},
@@ -413,7 +489,10 @@ func TestRankingSynapse_buildPrompt(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewRanking("test", provider)
+		synapse, err := NewRanking("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		input := RankingInput{
 			Items: []string{"x", "y"},
@@ -429,7 +508,10 @@ func TestRankingSynapse_buildPrompt(t *testing.T) {
 func TestRanking(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Ranking("quality", provider)
+		synapse, err := Ranking("quality", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Ranking wrapper returned nil")
@@ -438,16 +520,19 @@ func TestRanking(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"ranked": ["a", "b"], "confidence": 0.9, "reasoning": ["test"]}`)
-		synapse := Ranking("quality", provider,
+		synapse, err := Ranking("quality", provider,
 			WithRetry(3),
 			WithTimeout(10*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Ranking wrapper with options returned nil")
 		}
 
 		ctx := context.Background()
-		_, err := synapse.Fire(ctx, []string{"a", "b"})
+		_, err = synapse.Fire(ctx, NewSession(), []string{"a", "b"})
 		if err != nil {
 			t.Errorf("Ranking synapse Fire failed: %v", err)
 		}
@@ -455,11 +540,14 @@ func TestRanking(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"ranked": ["x", "y"], "confidence": 0.9, "reasoning": ["test"]}`)
-		synapse := Ranking("quality", provider).
-			WithDefaults(RankingInput{Context: "test context"})
+		synapse, err := Ranking("quality", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
+		synapse = synapse.WithDefaults(RankingInput{Context: "test context"})
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, []string{"y", "x"})
+		result, err := synapse.Fire(ctx, NewSession(), []string{"y", "x"})
 		if err != nil {
 			t.Fatalf("Ranking with chaining failed: %v", err)
 		}

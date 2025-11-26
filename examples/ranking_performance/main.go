@@ -26,10 +26,13 @@ func main() {
 	})
 
 	// Create ranking synapse
-	synapse := zyn.Ranking("by performance and efficiency", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Ranking("by performance and efficiency", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Rank databases
-	response, err := synapse.FireWithInput(ctx, zyn.RankingInput{
+	response, err := synapse.FireWithInput(ctx, zyn.NewSession(), zyn.RankingInput{
 		Items:   []string{"PostgreSQL", "MySQL", "MongoDB", "Redis", "Cassandra"},
 		Context: "For high-throughput read-heavy workload with occasional writes",
 		Examples: []string{

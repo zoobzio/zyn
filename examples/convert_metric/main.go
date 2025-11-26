@@ -51,10 +51,13 @@ func main() {
 	})
 
 	// Create convert synapse
-	synapse := zyn.Convert[RawMetric, ProcessedMetric]("normalize metrics to standard format", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Convert[RawMetric, ProcessedMetric]("normalize metrics to standard format", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Convert metric
-	response, err := synapse.FireWithInput(ctx, zyn.ConvertInput[RawMetric]{
+	response, err := synapse.FireWithInput(ctx, zyn.NewSession(), zyn.ConvertInput[RawMetric]{
 		Data: RawMetric{
 			Name:  "http_req_duration",
 			Value: 250,

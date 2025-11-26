@@ -26,10 +26,13 @@ func main() {
 	})
 
 	// Create sentiment synapse
-	synapse := zyn.Sentiment("general sentiment", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Sentiment("general sentiment", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Execute sentiment analysis
-	response, err := synapse.FireWithDetails(ctx, "I absolutely love this product! It exceeded all my expectations.")
+	response, err := synapse.FireWithDetails(ctx, zyn.NewSession(), "I absolutely love this product! It exceeded all my expectations.")
 	if err != nil {
 		log.Fatalf("Sentiment analysis failed: %v", err)
 	}

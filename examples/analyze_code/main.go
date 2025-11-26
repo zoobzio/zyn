@@ -32,10 +32,13 @@ func main() {
 	})
 
 	// Create analyze synapse
-	synapse := zyn.Analyze[CodeSnippet]("code for potential bugs and improvements", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Analyze[CodeSnippet]("code for potential bugs and improvements", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Analyze code
-	response, err := synapse.FireWithInputDetails(ctx, zyn.AnalyzeInput[CodeSnippet]{
+	response, err := synapse.FireWithInputDetails(ctx, zyn.NewSession(), zyn.AnalyzeInput[CodeSnippet]{
 		Data: CodeSnippet{
 			Language: "Go",
 			Code: `func divide(a, b int) int {

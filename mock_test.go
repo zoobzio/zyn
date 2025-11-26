@@ -19,11 +19,11 @@ func TestNewMockProvider(t *testing.T) {
 		provider := NewMockProvider()
 
 		ctx := context.Background()
-		response, err := provider.Call(ctx, "test prompt", 0.5)
+		response, err := provider.Call(ctx, []Message{{Role: RoleUser, Content: "test prompt"}}, 0.5)
 		if err != nil {
 			t.Errorf("Call failed: %v", err)
 		}
-		if response == "" {
+		if response.Content == "" {
 			t.Error("Expected non-empty response")
 		}
 	})
@@ -54,11 +54,11 @@ func TestNewMockProviderWithName(t *testing.T) {
 		provider := NewMockProviderWithName("reliable-provider")
 
 		ctx := context.Background()
-		response, err := provider.Call(ctx, "test", 0.5)
+		response, err := provider.Call(ctx, []Message{{Role: RoleUser, Content: "test"}}, 0.5)
 		if err != nil {
 			t.Errorf("Call failed: %v", err)
 		}
-		if response == "" {
+		if response.Content == "" {
 			t.Error("Expected response from named provider")
 		}
 	})
@@ -78,11 +78,11 @@ func TestMockProvider_Call(t *testing.T) {
 		provider := NewMockProvider()
 
 		ctx := context.Background()
-		response, err := provider.Call(ctx, "test prompt", 0.5)
+		response, err := provider.Call(ctx, []Message{{Role: RoleUser, Content: "test prompt"}}, 0.5)
 		if err != nil {
 			t.Fatalf("Call failed: %v", err)
 		}
-		if response == "" {
+		if response.Content == "" {
 			t.Error("Expected non-empty response")
 		}
 	})
@@ -91,17 +91,17 @@ func TestMockProvider_Call(t *testing.T) {
 		provider := NewMockProviderWithName("test")
 
 		ctx := context.Background()
-		response1, err := provider.Call(ctx, "prompt1", 0.5)
+		response1, err := provider.Call(ctx, []Message{{Role: RoleUser, Content: "prompt1"}}, 0.5)
 		if err != nil {
 			t.Errorf("First call failed: %v", err)
 		}
 
-		response2, err := provider.Call(ctx, "prompt2", 0.5)
+		response2, err := provider.Call(ctx, []Message{{Role: RoleUser, Content: "prompt2"}}, 0.5)
 		if err != nil {
 			t.Errorf("Second call failed: %v", err)
 		}
 
-		if response1 == "" || response2 == "" {
+		if response1.Content == "" || response2.Content == "" {
 			t.Error("Expected responses from both calls")
 		}
 	})
@@ -110,13 +110,13 @@ func TestMockProvider_Call(t *testing.T) {
 		provider := NewMockProvider()
 
 		ctx := context.Background()
-		response, err := provider.Call(ctx, "test", 0.5)
+		response, err := provider.Call(ctx, []Message{{Role: RoleUser, Content: "test"}}, 0.5)
 		if err != nil {
 			t.Fatalf("Call failed: %v", err)
 		}
 
 		// Response should be parseable as various types
-		if response == "" {
+		if response.Content == "" {
 			t.Error("Expected valid response for chaining")
 		}
 	})
@@ -159,7 +159,7 @@ func TestMockProvider_SetAvailable(t *testing.T) {
 		provider.SetAvailable(false)
 
 		ctx := context.Background()
-		_, err := provider.Call(ctx, "test", 0.5)
+		_, err := provider.Call(ctx, []Message{{Role: RoleUser, Content: "test"}}, 0.5)
 		if err == nil {
 			t.Error("Expected error when unavailable")
 		}
@@ -171,14 +171,14 @@ func TestMockProvider_SetAvailable(t *testing.T) {
 		ctx := context.Background()
 
 		// Initially available
-		_, err := provider.Call(ctx, "test", 0.5)
+		_, err := provider.Call(ctx, []Message{{Role: RoleUser, Content: "test"}}, 0.5)
 		if err != nil {
 			t.Errorf("Provider should be available initially: %v", err)
 		}
 
 		// Set unavailable
 		provider.SetAvailable(false)
-		_, err = provider.Call(ctx, "test", 0.5)
+		_, err = provider.Call(ctx, []Message{{Role: RoleUser, Content: "test"}}, 0.5)
 		if err == nil {
 			t.Error("Expected error when unavailable")
 		}
@@ -188,7 +188,7 @@ func TestMockProvider_SetAvailable(t *testing.T) {
 
 		// Set available again
 		provider.SetAvailable(true)
-		_, err = provider.Call(ctx, "test", 0.5)
+		_, err = provider.Call(ctx, []Message{{Role: RoleUser, Content: "test"}}, 0.5)
 		if err != nil {
 			t.Errorf("Provider should be available again: %v", err)
 		}
@@ -199,13 +199,13 @@ func TestMockProvider_SetAvailable(t *testing.T) {
 		ctx := context.Background()
 
 		provider.SetAvailable(false)
-		_, err := provider.Call(ctx, "test", 0.5)
+		_, err := provider.Call(ctx, []Message{{Role: RoleUser, Content: "test"}}, 0.5)
 		if err == nil {
 			t.Error("Expected unavailable error")
 		}
 
 		provider.SetAvailable(true)
-		_, err = provider.Call(ctx, "test", 0.5)
+		_, err = provider.Call(ctx, []Message{{Role: RoleUser, Content: "test"}}, 0.5)
 		if err != nil {
 			t.Error("Should be available after re-enabling")
 		}
@@ -226,12 +226,12 @@ func TestNewMockProviderWithResponse(t *testing.T) {
 		provider := NewMockProviderWithResponse(expectedResponse)
 
 		ctx := context.Background()
-		response, err := provider.Call(ctx, "any prompt", 0.5)
+		response, err := provider.Call(ctx, []Message{{Role: RoleUser, Content: "any prompt"}}, 0.5)
 		if err != nil {
 			t.Errorf("Call failed: %v", err)
 		}
-		if response != expectedResponse {
-			t.Errorf("Expected fixed response '%s', got '%s'", expectedResponse, response)
+		if response.Content != expectedResponse {
+			t.Errorf("Expected fixed response '%s', got '%s'", expectedResponse, response.Content)
 		}
 	})
 
@@ -239,10 +239,10 @@ func TestNewMockProviderWithResponse(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"test": "fixed"}`)
 
 		ctx := context.Background()
-		response1, _ := provider.Call(ctx, "prompt1", 0.5)
-		response2, _ := provider.Call(ctx, "prompt2", 0.5)
+		response1, _ := provider.Call(ctx, []Message{{Role: RoleUser, Content: "prompt1"}}, 0.5)
+		response2, _ := provider.Call(ctx, []Message{{Role: RoleUser, Content: "prompt2"}}, 0.5)
 
-		if response1 != response2 {
+		if response1.Content != response2.Content {
 			t.Error("Fixed response provider should return same response")
 		}
 	})
@@ -267,12 +267,12 @@ func TestNewMockProviderWithCallback(t *testing.T) {
 		})
 
 		ctx := context.Background()
-		response, err := provider.Call(ctx, "test", 0.5)
+		response, err := provider.Call(ctx, []Message{{Role: RoleUser, Content: "test"}}, 0.5)
 		if err != nil {
 			t.Errorf("Call failed: %v", err)
 		}
-		if response != "response test" {
-			t.Errorf("Expected 'response test', got '%s'", response)
+		if response.Content != "response test" {
+			t.Errorf("Expected 'response test', got '%s'", response.Content)
 		}
 		if callCount != 1 {
 			t.Errorf("Expected callback to be called once, got %d", callCount)
@@ -288,10 +288,10 @@ func TestNewMockProviderWithCallback(t *testing.T) {
 		})
 
 		ctx := context.Background()
-		response1, _ := provider.Call(ctx, "prompt1", 0.5)
-		response2, _ := provider.Call(ctx, "prompt2", 0.5)
+		response1, _ := provider.Call(ctx, []Message{{Role: RoleUser, Content: "prompt1"}}, 0.5)
+		response2, _ := provider.Call(ctx, []Message{{Role: RoleUser, Content: "prompt2"}}, 0.5)
 
-		if response1 == response2 {
+		if response1.Content == response2.Content {
 			t.Error("Callback should produce different responses for different prompts")
 		}
 	})
@@ -311,7 +311,7 @@ func TestNewMockProviderWithError(t *testing.T) {
 		provider := NewMockProviderWithError(expectedError)
 
 		ctx := context.Background()
-		_, err := provider.Call(ctx, "test", 0.5)
+		_, err := provider.Call(ctx, []Message{{Role: RoleUser, Content: "test"}}, 0.5)
 		if err == nil {
 			t.Error("Expected error but got none")
 		}
@@ -324,8 +324,8 @@ func TestNewMockProviderWithError(t *testing.T) {
 		provider := NewMockProviderWithError("persistent error")
 
 		ctx := context.Background()
-		_, err1 := provider.Call(ctx, "test1", 0.5)
-		_, err2 := provider.Call(ctx, "test2", 0.5)
+		_, err1 := provider.Call(ctx, []Message{{Role: RoleUser, Content: "test1"}}, 0.5)
+		_, err2 := provider.Call(ctx, []Message{{Role: RoleUser, Content: "test2"}}, 0.5)
 
 		if err1 == nil || err2 == nil {
 			t.Error("Error provider should always return error")

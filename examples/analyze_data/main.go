@@ -33,10 +33,13 @@ func main() {
 	})
 
 	// Create analyze synapse
-	synapse := zyn.Analyze[SalesData]("business performance and trends", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Analyze[SalesData]("business performance and trends", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Analyze sales data
-	response, err := synapse.FireWithInputDetails(ctx, zyn.AnalyzeInput[SalesData]{
+	response, err := synapse.FireWithInputDetails(ctx, zyn.NewSession(), zyn.AnalyzeInput[SalesData]{
 		Data: SalesData{
 			Quarter: "Q4 2024",
 			Revenue: 1250000,

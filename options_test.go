@@ -346,7 +346,10 @@ func TestWithFallback(t *testing.T) {
 			return req, nil
 		})
 
-		fallbackSynapse := Binary("fallback question", NewMockProvider())
+		fallbackSynapse, err := Binary("fallback question", NewMockProvider())
+		if err != nil {
+			t.Fatalf("failed to create fallback synapse: %v", err)
+		}
 
 		option := WithFallback(fallbackSynapse)
 		wrapped := option(primaryPipeline)
@@ -362,7 +365,10 @@ func TestWithFallback(t *testing.T) {
 		})
 
 		provider := NewMockProviderWithResponse(`{"decision": false, "confidence": 0.5, "reasoning": ["fallback"]}`)
-		fallbackSynapse := Binary("fallback", provider)
+		fallbackSynapse, err := Binary("fallback", provider)
+		if err != nil {
+			t.Fatalf("failed to create fallback synapse: %v", err)
+		}
 
 		option := WithFallback(fallbackSynapse)
 		wrapped := option(primaryPipeline)
@@ -385,7 +391,10 @@ func TestWithFallback(t *testing.T) {
 			return req, nil
 		})
 
-		fallbackSynapse := Binary("fallback", NewMockProvider())
+		fallbackSynapse, err := Binary("fallback", NewMockProvider())
+		if err != nil {
+			t.Fatalf("failed to create fallback synapse: %v", err)
+		}
 
 		option := WithFallback(fallbackSynapse)
 		wrapped := option(primaryPipeline)
@@ -399,58 +408,6 @@ func TestWithFallback(t *testing.T) {
 		}
 		if result.Response != "primary response" {
 			t.Error("Expected primary response when primary succeeds")
-		}
-	})
-}
-
-func TestWithDebug(t *testing.T) {
-	t.Run("simple", func(t *testing.T) {
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
-			return req, nil
-		})
-
-		option := WithDebug()
-		wrapped := option(pipeline)
-
-		if wrapped == nil {
-			t.Error("WithDebug returned nil pipeline")
-		}
-	})
-
-	t.Run("reliability", func(t *testing.T) {
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
-			req.Response = "test response"
-			return req, nil
-		})
-
-		option := WithDebug()
-		wrapped := option(pipeline)
-
-		ctx := context.Background()
-		prompt := &Prompt{Task: "test task", Input: "test input", Schema: "{}"}
-		req := &SynapseRequest{Prompt: prompt}
-		result, err := wrapped.Process(ctx, req)
-		if err != nil {
-			t.Errorf("Debug wrapper should not cause errors: %v", err)
-		}
-		if result.Response != "test response" {
-			t.Error("Debug should pass through response")
-		}
-	})
-
-	t.Run("chaining", func(t *testing.T) {
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
-			return req, nil
-		})
-
-		option := WithDebug()
-		wrapped := option(pipeline)
-
-		ctx := context.Background()
-		req := &SynapseRequest{Prompt: &Prompt{Task: "test", Input: "test", Schema: "{}"}}
-		_, err := wrapped.Process(ctx, req)
-		if err != nil {
-			t.Errorf("Debug pipeline failed: %v", err)
 		}
 	})
 }

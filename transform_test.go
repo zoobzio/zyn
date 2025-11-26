@@ -9,7 +9,10 @@ import (
 func TestTransform(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Transform("summarize", provider)
+		synapse, err := Transform("summarize", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Transform wrapper returned nil")
@@ -18,16 +21,19 @@ func TestTransform(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"output": "transformed text", "confidence": 0.9, "changes": [], "reasoning": ["test"]}`)
-		synapse := Transform("summarize", provider,
+		synapse, err := Transform("summarize", provider,
 			WithRetry(3),
 			WithTimeout(10*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Transform wrapper with options returned nil")
 		}
 
 		ctx := context.Background()
-		_, err := synapse.Fire(ctx, "test text")
+		_, err = synapse.Fire(ctx, NewSession(), "test text")
 		if err != nil {
 			t.Errorf("Transform synapse Fire failed: %v", err)
 		}
@@ -35,10 +41,13 @@ func TestTransform(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"output": "transformed", "confidence": 0.9, "changes": [], "reasoning": ["test"]}`)
-		synapse := Transform("summarize", provider)
+		synapse, err := Transform("summarize", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, "test text")
+		result, err := synapse.Fire(ctx, NewSession(), "test text")
 		if err != nil {
 			t.Fatalf("Transform with chaining failed: %v", err)
 		}
@@ -51,7 +60,10 @@ func TestTransform(t *testing.T) {
 func TestTransformSynapse_GetPipeline(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Transform("test", provider)
+		synapse, err := Transform("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		pipeline := synapse.GetPipeline()
 		if pipeline == nil {
@@ -61,7 +73,10 @@ func TestTransformSynapse_GetPipeline(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Transform("test", provider, WithRetry(3))
+		synapse, err := Transform("test", provider, WithRetry(3))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		pipeline := synapse.GetPipeline()
 		if pipeline == nil {
@@ -71,7 +86,10 @@ func TestTransformSynapse_GetPipeline(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Transform("test", provider)
+		synapse, err := Transform("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		pipeline := synapse.GetPipeline()
 		if pipeline == nil {
@@ -81,7 +99,7 @@ func TestTransformSynapse_GetPipeline(t *testing.T) {
 		ctx := context.Background()
 		prompt := &Prompt{Task: "test", Input: "test", Schema: "{}"}
 		req := &SynapseRequest{Prompt: prompt, Temperature: 0.5}
-		_, err := pipeline.Process(ctx, req)
+		_, err = pipeline.Process(ctx, req)
 		if err != nil {
 			t.Errorf("Pipeline processing failed: %v", err)
 		}
@@ -91,10 +109,13 @@ func TestTransformSynapse_GetPipeline(t *testing.T) {
 func TestTransformSynapse_Fire(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"output": "summary text", "confidence": 0.9, "changes": [], "reasoning": ["test"]}`)
-		synapse := Transform("summarize", provider)
+		synapse, err := Transform("summarize", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, "long text to summarize")
+		result, err := synapse.Fire(ctx, NewSession(), "long text to summarize")
 		if err != nil {
 			t.Fatalf("Fire failed: %v", err)
 		}
@@ -105,12 +126,15 @@ func TestTransformSynapse_Fire(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"output": "test output", "confidence": 0.8, "changes": [], "reasoning": ["test"]}`)
-		synapse := Transform("test", provider,
+		synapse, err := Transform("test", provider,
 			WithRetry(2),
 			WithTimeout(5*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, "test input")
+		result, err := synapse.Fire(ctx, NewSession(), "test input")
 		if err != nil {
 			t.Fatalf("Fire with reliability options failed: %v", err)
 		}
@@ -122,13 +146,19 @@ func TestTransformSynapse_Fire(t *testing.T) {
 	t.Run("chaining", func(t *testing.T) {
 		failing := NewMockProviderWithError("primary failed")
 		fallbackProvider := NewMockProviderWithResponse(`{"output": "fallback output", "confidence": 0.7, "changes": [], "reasoning": ["test"]}`)
-		fallbackSynapse := Transform("test", fallbackProvider)
+		fallbackSynapse, err := Transform("test", fallbackProvider)
+		if err != nil {
+			t.Fatalf("failed to create fallback synapse: %v", err)
+		}
 
-		synapse := Transform("test", failing,
+		synapse, err := Transform("test", failing,
 			WithFallback(fallbackSynapse))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, "test")
+		result, err := synapse.Fire(ctx, NewSession(), "test")
 		if err != nil {
 			t.Fatalf("Fire with fallback failed: %v", err)
 		}
@@ -141,10 +171,13 @@ func TestTransformSynapse_Fire(t *testing.T) {
 func TestTransformSynapse_FireWithDetails(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"output": "transformed", "confidence": 0.95, "changes": ["change1"], "reasoning": ["reason1"]}`)
-		synapse := Transform("test", provider)
+		synapse, err := Transform("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		response, err := synapse.FireWithDetails(ctx, "input text")
+		response, err := synapse.FireWithDetails(ctx, NewSession(), "input text")
 		if err != nil {
 			t.Fatalf("FireWithDetails failed: %v", err)
 		}
@@ -161,12 +194,15 @@ func TestTransformSynapse_FireWithDetails(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"output": "test", "confidence": 0.8, "changes": [], "reasoning": ["test"]}`)
-		synapse := Transform("test", provider,
+		synapse, err := Transform("test", provider,
 			WithRetry(3),
 			WithBackoff(2, 10*time.Millisecond))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		response, err := synapse.FireWithDetails(ctx, "test")
+		response, err := synapse.FireWithDetails(ctx, NewSession(), "test")
 		if err != nil {
 			t.Fatalf("FireWithDetails with backoff failed: %v", err)
 		}
@@ -177,10 +213,13 @@ func TestTransformSynapse_FireWithDetails(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"output": "test", "confidence": 0.9, "changes": [], "reasoning": ["test"]}`)
-		synapse := Transform("test", provider)
+		synapse, err := Transform("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		response, err := synapse.FireWithDetails(ctx, "test")
+		response, err := synapse.FireWithDetails(ctx, NewSession(), "test")
 		if err != nil {
 			t.Fatalf("FireWithDetails failed: %v", err)
 		}
@@ -193,14 +232,17 @@ func TestTransformSynapse_FireWithDetails(t *testing.T) {
 func TestTransformSynapse_FireWithInput(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"output": "transformed text", "confidence": 0.9, "changes": [], "reasoning": ["test"]}`)
-		synapse := Transform("test", provider)
+		synapse, err := Transform("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := TransformInput{
 			Text:    "input text",
 			Context: "test context",
 		}
-		result, err := synapse.FireWithInput(ctx, input)
+		result, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput failed: %v", err)
 		}
@@ -211,15 +253,18 @@ func TestTransformSynapse_FireWithInput(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"output": "test", "confidence": 0.85, "changes": [], "reasoning": ["test"]}`)
-		synapse := Transform("test", provider,
+		synapse, err := Transform("test", provider,
 			WithCircuitBreaker(5, 30*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := TransformInput{
 			Text:        "test",
 			Temperature: 0.3,
 		}
-		result, err := synapse.FireWithInput(ctx, input)
+		result, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput with circuit breaker failed: %v", err)
 		}
@@ -230,14 +275,17 @@ func TestTransformSynapse_FireWithInput(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"output": "test", "confidence": 0.9, "changes": [], "reasoning": ["test"]}`)
-		synapse := Transform("test", provider)
+		synapse, err := Transform("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := TransformInput{
 			Text:    "test",
 			Context: "context",
 		}
-		result, err := synapse.FireWithInput(ctx, input)
+		result, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput failed: %v", err)
 		}
@@ -250,13 +298,16 @@ func TestTransformSynapse_FireWithInput(t *testing.T) {
 func TestTransformSynapse_FireWithInputDetails(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"output": "detailed", "confidence": 0.9, "changes": ["c1"], "reasoning": ["r1"]}`)
-		synapse := Transform("test", provider)
+		synapse, err := Transform("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := TransformInput{
 			Text: "input",
 		}
-		response, err := synapse.FireWithInputDetails(ctx, input)
+		response, err := synapse.FireWithInputDetails(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInputDetails failed: %v", err)
 		}
@@ -267,14 +318,17 @@ func TestTransformSynapse_FireWithInputDetails(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"output": "test", "confidence": 0.8, "changes": [], "reasoning": ["test"]}`)
-		synapse := Transform("test", provider, WithRetry(3))
+		synapse, err := Transform("test", provider, WithRetry(3))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := TransformInput{
 			Text:        "test",
 			Temperature: 0.7,
 		}
-		response, err := synapse.FireWithInputDetails(ctx, input)
+		response, err := synapse.FireWithInputDetails(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInputDetails with retry failed: %v", err)
 		}
@@ -285,14 +339,17 @@ func TestTransformSynapse_FireWithInputDetails(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"output": "test", "confidence": 0.9, "changes": [], "reasoning": ["test"]}`)
-		synapse := Transform("test", provider)
+		synapse, err := Transform("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := TransformInput{
 			Text:    "test",
 			Context: "context",
 		}
-		response, err := synapse.FireWithInputDetails(ctx, input)
+		response, err := synapse.FireWithInputDetails(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInputDetails failed: %v", err)
 		}
@@ -371,9 +428,13 @@ func TestTransformSynapse_mergeInputs(t *testing.T) {
 
 func TestTransformSynapse_buildPrompt(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
+		schema, err := generateJSONSchema[TransformResponse]()
+		if err != nil {
+			t.Fatalf("failed to generate schema: %v", err)
+		}
 		synapse := &TransformSynapse{
 			instruction: "summarize",
-			schema:      generateJSONSchema[TransformResponse](),
+			schema:      schema,
 		}
 
 		input := TransformInput{
@@ -393,9 +454,13 @@ func TestTransformSynapse_buildPrompt(t *testing.T) {
 	})
 
 	t.Run("reliability", func(t *testing.T) {
+		schema, err := generateJSONSchema[TransformResponse]()
+		if err != nil {
+			t.Fatalf("failed to generate schema: %v", err)
+		}
 		synapse := &TransformSynapse{
 			instruction: "test",
-			schema:      generateJSONSchema[TransformResponse](),
+			schema:      schema,
 		}
 
 		input := TransformInput{
@@ -417,9 +482,13 @@ func TestTransformSynapse_buildPrompt(t *testing.T) {
 	})
 
 	t.Run("chaining", func(t *testing.T) {
+		schema, err := generateJSONSchema[TransformResponse]()
+		if err != nil {
+			t.Fatalf("failed to generate schema: %v", err)
+		}
 		synapse := &TransformSynapse{
 			instruction: "test",
-			schema:      generateJSONSchema[TransformResponse](),
+			schema:      schema,
 		}
 
 		input := TransformInput{

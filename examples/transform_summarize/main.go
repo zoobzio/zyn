@@ -26,10 +26,13 @@ func main() {
 	})
 
 	// Create transformation synapse
-	synapse := zyn.Transform("summarize to one concise paragraph", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Transform("summarize to one concise paragraph", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Summarize text
-	response, err := synapse.FireWithInputDetails(ctx, zyn.TransformInput{
+	response, err := synapse.FireWithInputDetails(ctx, zyn.NewSession(), zyn.TransformInput{
 		Text: `The Go programming language was designed at Google in 2007 by Robert Griesemer,
 Rob Pike, and Ken Thompson. It was created to address software engineering challenges at
 Google, particularly in the context of networked servers and large codebases. The language

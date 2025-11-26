@@ -9,7 +9,10 @@ import (
 func TestNewSentiment(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewSentiment("basic sentiment", provider)
+		synapse, err := NewSentiment("basic sentiment", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Expected synapse to be created")
@@ -21,9 +24,12 @@ func TestNewSentiment(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewSentiment("basic sentiment", provider,
+		synapse, err := NewSentiment("basic sentiment", provider,
 			WithRetry(3),
 			WithTimeout(10*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Expected synapse with reliability options to be created")
@@ -33,10 +39,16 @@ func TestNewSentiment(t *testing.T) {
 	t.Run("chaining", func(t *testing.T) {
 		primary := NewMockProviderWithName("primary")
 		fallback := NewMockProviderWithName("fallback")
-		fallbackSynapse := NewSentiment("basic sentiment", fallback)
+		fallbackSynapse, err := NewSentiment("basic sentiment", fallback)
+		if err != nil {
+			t.Fatalf("failed to create fallback synapse: %v", err)
+		}
 
-		synapse := NewSentiment("basic sentiment", primary,
+		synapse, err := NewSentiment("basic sentiment", primary,
 			WithFallback(fallbackSynapse))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Expected synapse with fallback to be created")
@@ -47,7 +59,10 @@ func TestNewSentiment(t *testing.T) {
 func TestSentimentSynapse_GetPipeline(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewSentiment("test", provider)
+		synapse, err := NewSentiment("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		pipeline := synapse.GetPipeline()
 		if pipeline == nil {
@@ -57,7 +72,10 @@ func TestSentimentSynapse_GetPipeline(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewSentiment("test", provider, WithRetry(3))
+		synapse, err := NewSentiment("test", provider, WithRetry(3))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		pipeline := synapse.GetPipeline()
 		if pipeline == nil {
@@ -67,7 +85,10 @@ func TestSentimentSynapse_GetPipeline(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewSentiment("test", provider)
+		synapse, err := NewSentiment("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		pipeline := synapse.GetPipeline()
 		if pipeline == nil {
@@ -77,7 +98,7 @@ func TestSentimentSynapse_GetPipeline(t *testing.T) {
 		ctx := context.Background()
 		prompt := &Prompt{Task: "test", Input: "test", Schema: "{}"}
 		req := &SynapseRequest{Prompt: prompt, Temperature: 0.5}
-		_, err := pipeline.Process(ctx, req)
+		_, err = pipeline.Process(ctx, req)
 		if err != nil {
 			t.Errorf("Pipeline processing failed: %v", err)
 		}
@@ -87,7 +108,10 @@ func TestSentimentSynapse_GetPipeline(t *testing.T) {
 func TestSentimentSynapse_WithDefaults(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewSentiment("test", provider)
+		synapse, err := NewSentiment("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		defaults := SentimentInput{
 			Context:     "default context",
@@ -105,7 +129,10 @@ func TestSentimentSynapse_WithDefaults(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewSentiment("test", provider, WithRetry(3))
+		synapse, err := NewSentiment("test", provider, WithRetry(3))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		defaults := SentimentInput{Temperature: 0.7}
 		synapseWithDefaults := synapse.WithDefaults(defaults)
@@ -117,11 +144,14 @@ func TestSentimentSynapse_WithDefaults(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"overall": "positive", "confidence": 0.9, "scores": {"positive": 0.9, "negative": 0.05, "neutral": 0.05}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
-		synapse := NewSentiment("test", provider).
-			WithDefaults(SentimentInput{Context: "default", Temperature: 0.5})
+		synapse, err := NewSentiment("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
+		synapse = synapse.WithDefaults(SentimentInput{Context: "default", Temperature: 0.5})
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, "test text")
+		result, err := synapse.Fire(ctx, NewSession(), "test text")
 		if err != nil {
 			t.Errorf("Fire failed with defaults: %v", err)
 		}
@@ -134,10 +164,13 @@ func TestSentimentSynapse_WithDefaults(t *testing.T) {
 func TestSentimentSynapse_Fire(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"overall": "positive", "confidence": 0.9, "scores": {"positive": 0.9, "negative": 0.05, "neutral": 0.05}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
-		synapse := NewSentiment("basic sentiment", provider)
+		synapse, err := NewSentiment("basic sentiment", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, "I love this!")
+		result, err := synapse.Fire(ctx, NewSession(), "I love this!")
 		if err != nil {
 			t.Fatalf("Fire failed: %v", err)
 		}
@@ -148,12 +181,15 @@ func TestSentimentSynapse_Fire(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"overall": "negative", "confidence": 0.8, "scores": {"positive": 0.1, "negative": 0.8, "neutral": 0.1}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
-		synapse := NewSentiment("test", provider,
+		synapse, err := NewSentiment("test", provider,
 			WithRetry(2),
 			WithTimeout(5*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, "test input")
+		result, err := synapse.Fire(ctx, NewSession(), "test input")
 		if err != nil {
 			t.Fatalf("Fire with reliability options failed: %v", err)
 		}
@@ -165,13 +201,19 @@ func TestSentimentSynapse_Fire(t *testing.T) {
 	t.Run("chaining", func(t *testing.T) {
 		failing := NewMockProviderWithError("primary failed")
 		fallbackProvider := NewMockProviderWithResponse(`{"overall": "neutral", "confidence": 0.7, "scores": {"positive": 0.3, "negative": 0.3, "neutral": 0.4}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
-		fallbackSynapse := NewSentiment("test", fallbackProvider)
+		fallbackSynapse, err := NewSentiment("test", fallbackProvider)
+		if err != nil {
+			t.Fatalf("failed to create fallback synapse: %v", err)
+		}
 
-		synapse := NewSentiment("test", failing,
+		synapse, err := NewSentiment("test", failing,
 			WithFallback(fallbackSynapse))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, "test")
+		result, err := synapse.Fire(ctx, NewSession(), "test")
 		if err != nil {
 			t.Fatalf("Fire with fallback failed: %v", err)
 		}
@@ -184,10 +226,13 @@ func TestSentimentSynapse_Fire(t *testing.T) {
 func TestSentimentSynapse_FireWithDetails(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"overall": "positive", "confidence": 0.95, "scores": {"positive": 0.9, "negative": 0.05, "neutral": 0.05}, "aspects": {"quality": "positive"}, "emotions": ["joy"], "reasoning": ["enthusiastic"]}`)
-		synapse := NewSentiment("detailed sentiment", provider)
+		synapse, err := NewSentiment("detailed sentiment", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		response, err := synapse.FireWithDetails(ctx, "This is amazing!")
+		response, err := synapse.FireWithDetails(ctx, NewSession(), "This is amazing!")
 		if err != nil {
 			t.Fatalf("FireWithDetails failed: %v", err)
 		}
@@ -207,12 +252,15 @@ func TestSentimentSynapse_FireWithDetails(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"overall": "negative", "confidence": 0.8, "scores": {"positive": 0.1, "negative": 0.8, "neutral": 0.1}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
-		synapse := NewSentiment("test", provider,
+		synapse, err := NewSentiment("test", provider,
 			WithRetry(3),
 			WithBackoff(2, 10*time.Millisecond))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		response, err := synapse.FireWithDetails(ctx, "test")
+		response, err := synapse.FireWithDetails(ctx, NewSession(), "test")
 		if err != nil {
 			t.Fatalf("FireWithDetails with backoff failed: %v", err)
 		}
@@ -223,11 +271,14 @@ func TestSentimentSynapse_FireWithDetails(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"overall": "neutral", "confidence": 0.9, "scores": {"positive": 0.3, "negative": 0.3, "neutral": 0.4}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
-		synapse := NewSentiment("test", provider).
-			WithDefaults(SentimentInput{Context: "test context"})
+		synapse, err := NewSentiment("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
+		synapse = synapse.WithDefaults(SentimentInput{Context: "test context"})
 
 		ctx := context.Background()
-		response, err := synapse.FireWithDetails(ctx, "test")
+		response, err := synapse.FireWithDetails(ctx, NewSession(), "test")
 		if err != nil {
 			t.Fatalf("FireWithDetails with defaults failed: %v", err)
 		}
@@ -240,14 +291,17 @@ func TestSentimentSynapse_FireWithDetails(t *testing.T) {
 func TestSentimentSynapse_FireWithInput(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"overall": "positive", "confidence": 0.9, "scores": {"positive": 0.9, "negative": 0.05, "neutral": 0.05}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
-		synapse := NewSentiment("test", provider)
+		synapse, err := NewSentiment("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := SentimentInput{
 			Text:    "Great product!",
 			Context: "product review",
 		}
-		response, err := synapse.FireWithInput(ctx, input)
+		response, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput failed: %v", err)
 		}
@@ -258,15 +312,18 @@ func TestSentimentSynapse_FireWithInput(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"overall": "negative", "confidence": 0.85, "scores": {"positive": 0.1, "negative": 0.85, "neutral": 0.05}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
-		synapse := NewSentiment("test", provider,
+		synapse, err := NewSentiment("test", provider,
 			WithCircuitBreaker(5, 30*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := SentimentInput{
 			Text:        "test",
 			Temperature: 0.3,
 		}
-		response, err := synapse.FireWithInput(ctx, input)
+		response, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput with circuit breaker failed: %v", err)
 		}
@@ -281,14 +338,18 @@ func TestSentimentSynapse_FireWithInput(t *testing.T) {
 			Context: "default context",
 			Aspects: []string{"quality", "service"},
 		}
-		synapse := NewSentiment("test", provider).WithDefaults(defaults)
+		synapse, err := NewSentiment("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
+		synapse = synapse.WithDefaults(defaults)
 
 		ctx := context.Background()
 		input := SentimentInput{
 			Text:    "test",
 			Aspects: []string{"price"},
 		}
-		response, err := synapse.FireWithInput(ctx, input)
+		response, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput with defaults merge failed: %v", err)
 		}
@@ -301,7 +362,10 @@ func TestSentimentSynapse_FireWithInput(t *testing.T) {
 func TestSentimentSynapse_mergeInputs(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewSentiment("test", provider)
+		synapse, err := NewSentiment("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 		synapse.defaults = SentimentInput{
 			Context: "default context",
 		}
@@ -321,7 +385,10 @@ func TestSentimentSynapse_mergeInputs(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewSentiment("test", provider)
+		synapse, err := NewSentiment("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 		synapse.defaults = SentimentInput{
 			Context:     "default",
 			Temperature: 0.5,
@@ -344,7 +411,10 @@ func TestSentimentSynapse_mergeInputs(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewSentiment("test", provider)
+		synapse, err := NewSentiment("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 		synapse.defaults = SentimentInput{
 			Context: "default",
 			Aspects: []string{"aspect1"},
@@ -368,7 +438,10 @@ func TestSentimentSynapse_mergeInputs(t *testing.T) {
 func TestSentimentSynapse_buildPrompt(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewSentiment("basic sentiment", provider)
+		synapse, err := NewSentiment("basic sentiment", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		input := SentimentInput{
 			Text: "text to analyze",
@@ -388,7 +461,10 @@ func TestSentimentSynapse_buildPrompt(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewSentiment("test", provider)
+		synapse, err := NewSentiment("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		input := SentimentInput{
 			Text:    "test",
@@ -407,7 +483,10 @@ func TestSentimentSynapse_buildPrompt(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewSentiment("test", provider)
+		synapse, err := NewSentiment("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		input := SentimentInput{
 			Text: "test",
@@ -460,7 +539,10 @@ func TestNormalizeSentiment(t *testing.T) {
 func TestSentiment(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Sentiment("basic sentiment", provider)
+		synapse, err := Sentiment("basic sentiment", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Sentiment wrapper returned nil")
@@ -469,16 +551,19 @@ func TestSentiment(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"overall": "positive", "confidence": 0.9, "scores": {"positive": 0.9, "negative": 0.05, "neutral": 0.05}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
-		synapse := Sentiment("basic sentiment", provider,
+		synapse, err := Sentiment("basic sentiment", provider,
 			WithRetry(3),
 			WithTimeout(10*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Sentiment wrapper with options returned nil")
 		}
 
 		ctx := context.Background()
-		_, err := synapse.Fire(ctx, "test text")
+		_, err = synapse.Fire(ctx, NewSession(), "test text")
 		if err != nil {
 			t.Errorf("Sentiment synapse Fire failed: %v", err)
 		}
@@ -486,11 +571,14 @@ func TestSentiment(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"overall": "positive", "confidence": 0.9, "scores": {"positive": 0.9, "negative": 0.05, "neutral": 0.05}, "aspects": {}, "emotions": [], "reasoning": ["test"]}`)
-		synapse := Sentiment("basic sentiment", provider).
-			WithDefaults(SentimentInput{Context: "test context"})
+		synapse, err := Sentiment("basic sentiment", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
+		synapse = synapse.WithDefaults(SentimentInput{Context: "test context"})
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, "test text")
+		result, err := synapse.Fire(ctx, NewSession(), "test text")
 		if err != nil {
 			t.Fatalf("Sentiment with chaining failed: %v", err)
 		}

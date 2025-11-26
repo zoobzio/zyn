@@ -26,10 +26,13 @@ func main() {
 	})
 
 	// Create sentiment synapse
-	synapse := zyn.Sentiment("social media sentiment", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Sentiment("social media sentiment", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Analyze social media post
-	response, err := synapse.FireWithInput(ctx, zyn.SentimentInput{
+	response, err := synapse.FireWithInput(ctx, zyn.NewSession(), zyn.SentimentInput{
 		Text:        "Just tried the new @CoffeeShop seasonal latte. Not impressed... tastes artificial 😕",
 		Context:     "Social media feedback",
 		Temperature: 0.3, // Lower temperature for more consistent analysis

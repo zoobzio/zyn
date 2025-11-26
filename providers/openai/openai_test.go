@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/zoobzio/zyn"
 )
 
 func TestProviderCall(t *testing.T) {
@@ -48,7 +50,7 @@ func TestProviderCall(t *testing.T) {
 				{
 					Index: 0,
 					Message: message{
-						Role:    "assistant",
+						Role:    zyn.RoleAssistant,
 						Content: "test response",
 					},
 					FinishReason: "stop",
@@ -74,13 +76,13 @@ func TestProviderCall(t *testing.T) {
 	})
 
 	// Make a call
-	response, err := provider.Call(ctx, "test prompt", 0.7)
+	response, err := provider.Call(ctx, []zyn.Message{{Role: zyn.RoleUser, Content: "test prompt"}}, 0.7)
 	if err != nil {
 		t.Fatalf("Call failed: %v", err)
 	}
 
-	if response != "test response" {
-		t.Errorf("Expected 'test response', got '%s'", response)
+	if response.Content != "test response" {
+		t.Errorf("Expected 'test response', got '%s'", response.Content)
 	}
 }
 
@@ -96,16 +98,16 @@ func TestOpenAIIntegration(t *testing.T) {
 		Model:  "gpt-3.5-turbo",
 	})
 
-	response, err := provider.Call(ctx, "Say 'test successful' and nothing else.", 0.7)
+	response, err := provider.Call(ctx, []zyn.Message{{Role: zyn.RoleUser, Content: "Say 'test successful' and nothing else."}}, 0.7)
 	if err != nil {
 		t.Fatalf("Call failed: %v", err)
 	}
 
-	if response == "" {
+	if response.Content == "" {
 		t.Error("Expected non-empty response")
 	}
 
-	t.Logf("Response: %s", response)
+	t.Logf("Response: %s", response.Content)
 }
 
 func TestProviderErrorHandling(t *testing.T) {
@@ -166,7 +168,7 @@ func TestProviderErrorHandling(t *testing.T) {
 				BaseURL: server.URL,
 			})
 
-			_, err := provider.Call(ctx, "test", 0.7)
+			_, err := provider.Call(ctx, []zyn.Message{{Role: zyn.RoleUser, Content: "test"}}, 0.7)
 			if err == nil {
 				t.Fatal("Expected error but got none")
 			}

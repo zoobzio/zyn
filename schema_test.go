@@ -20,232 +20,294 @@ type ComplexStruct struct {
 	Ignored  string   `json:"-"`
 }
 
-type NestedStruct struct {
-	Outer string `json:"outer"`
-	Inner struct {
-		Field string `json:"field"`
-	} `json:"inner"`
+type NestedInner struct {
+	Value float64 `json:"value"`
+	Label string  `json:"label"`
+}
+
+type NestedOuter struct {
+	Name  string      `json:"name"`
+	Inner NestedInner `json:"inner"`
+}
+
+type WithArrayOfStructs struct {
+	Items []NestedInner `json:"items"`
+}
+
+type WithMap struct {
+	Data map[string]string `json:"data"`
+}
+
+type WithMapOfStructs struct {
+	Records map[string]NestedInner `json:"records"`
 }
 
 func TestGenerateJSONSchema(t *testing.T) {
-	t.Run("simple", func(t *testing.T) {
-		schema := generateJSONSchema[SimpleStruct]()
-		if schema == "" || schema == "{}" {
-			t.Error("Expected non-empty schema")
+	t.Run("simple struct", func(t *testing.T) {
+		schema, err := generateJSONSchema[SimpleStruct]()
+		if err != nil {
+			t.Fatalf("failed to generate schema: %v", err)
 		}
 
-		// Verify it's valid JSON
-		var parsed map[string]interface{}
-		if err := json.Unmarshal([]byte(schema), &parsed); err != nil {
-			t.Errorf("Schema is not valid JSON: %v", err)
+		var rawParsed map[string]any
+		if err := json.Unmarshal([]byte(schema), &rawParsed); err != nil {
+			t.Fatalf("schema is not valid JSON: %v", err)
 		}
 
-		// Check basic structure
-		if parsed["type"] != "object" {
-			t.Errorf("Expected type=object, got %v", parsed["type"])
+		if rawParsed["type"] != "object" {
+			t.Errorf("expected type=object, got %v", rawParsed["type"])
 		}
-		if parsed["properties"] == nil {
-			t.Error("Expected properties field")
-		}
-	})
 
-	t.Run("reliability", func(t *testing.T) {
-		// Test that schema generation is consistent
-		schema1 := generateJSONSchema[SimpleStruct]()
-		schema2 := generateJSONSchema[SimpleStruct]()
-		if schema1 != schema2 {
-			t.Error("Schema generation is not deterministic")
-		}
-	})
+		// Check properties exist
+		props := rawParsed["properties"].(map[string]any)
 
-	t.Run("chaining", func(t *testing.T) {
-		// Test with complex nested types
-		schema := generateJSONSchema[NestedStruct]()
-		var parsed map[string]interface{}
-		if err := json.Unmarshal([]byte(schema), &parsed); err != nil {
-			t.Errorf("Failed to parse nested schema: %v", err)
-		}
-	})
-}
-
-func TestBuildProperties(t *testing.T) {
-	t.Run("simple", func(t *testing.T) {
-		metadata := sentinel.Inspect[SimpleStruct]()
-		props := buildProperties(metadata.Fields)
-
-		if len(props) == 0 {
-			t.Error("Expected properties to be built")
-		}
 		if props["name"] == nil {
-			t.Error("Expected name property")
+			t.Error("expected 'name' property")
 		}
 		if props["count"] == nil {
-			t.Error("Expected count property")
+			t.Error("expected 'count' property")
 		}
 	})
 
-	t.Run("reliability", func(t *testing.T) {
-		// Test with omitempty and ignored fields
-		metadata := sentinel.Inspect[ComplexStruct]()
-		props := buildProperties(metadata.Fields)
-
-		if props["-"] != nil {
-			t.Error("Fields with json:\"-\" should be skipped")
+	t.Run("complex struct with omitempty", func(t *testing.T) {
+		schema, err := generateJSONSchema[ComplexStruct]()
+		if err != nil {
+			t.Fatalf("failed to generate schema: %v", err)
 		}
-		if props["required"] == nil {
-			t.Error("Expected required field")
-		}
-	})
 
-	t.Run("chaining", func(t *testing.T) {
-		// Test properties work with schema generation
-		schema := generateJSONSchema[ComplexStruct]()
-		var parsed map[string]interface{}
-		json.Unmarshal([]byte(schema), &parsed)
-		props := parsed["properties"].(map[string]interface{})
+		var rawParsed map[string]any
+		json.Unmarshal([]byte(schema), &rawParsed)
 
-		if len(props) == 0 {
-			t.Error("Properties should be present in full schema")
-		}
-	})
-}
-
-func TestBuildRequiredFields(t *testing.T) {
-	t.Run("simple", func(t *testing.T) {
-		metadata := sentinel.Inspect[SimpleStruct]()
-		required := buildRequiredFields(metadata.Fields)
-
-		if len(required) == 0 {
-			t.Error("Expected required fields")
-		}
-	})
-
-	t.Run("reliability", func(t *testing.T) {
-		// Test with omitempty - should not be in required
-		metadata := sentinel.Inspect[ComplexStruct]()
-		required := buildRequiredFields(metadata.Fields)
-
+		// Check required fields - optional should not be required
+		required := rawParsed["required"].([]any)
 		hasOptional := false
-		for _, field := range required {
-			if field == "optional" {
+		hasRequired := false
+		for _, r := range required {
+			if r == "optional" {
 				hasOptional = true
+			}
+			if r == "required" {
+				hasRequired = true
 			}
 		}
 		if hasOptional {
-			t.Error("Fields with omitempty should not be required")
+			t.Error("'optional' should not be in required list")
+		}
+		if !hasRequired {
+			t.Error("'required' should be in required list")
+		}
+
+		// Check ignored field is not present
+		props := rawParsed["properties"].(map[string]any)
+		if props["-"] != nil {
+			t.Error("ignored field should not appear")
 		}
 	})
 
-	t.Run("chaining", func(t *testing.T) {
-		// Test required fields appear in full schema
-		schema := generateJSONSchema[ComplexStruct]()
-		var parsed map[string]interface{}
-		json.Unmarshal([]byte(schema), &parsed)
-		required := parsed["required"].([]interface{})
+	t.Run("nested struct", func(t *testing.T) {
+		schema, err := generateJSONSchema[NestedOuter]()
+		if err != nil {
+			t.Fatalf("failed to generate schema: %v", err)
+		}
 
-		if len(required) == 0 {
-			t.Error("Required fields should be present in schema")
+		var rawParsed map[string]any
+		json.Unmarshal([]byte(schema), &rawParsed)
+		props := rawParsed["properties"].(map[string]any)
+
+		// Check inner has nested properties
+		inner := props["inner"].(map[string]any)
+		if inner["type"] != "object" {
+			t.Errorf("expected inner.type=object, got %v", inner["type"])
+		}
+
+		innerProps := inner["properties"].(map[string]any)
+		if innerProps["value"] == nil {
+			t.Error("expected inner to have 'value' property")
+		}
+		if innerProps["label"] == nil {
+			t.Error("expected inner to have 'label' property")
+		}
+	})
+
+	t.Run("array of primitives", func(t *testing.T) {
+		schema, err := generateJSONSchema[ComplexStruct]()
+		if err != nil {
+			t.Fatalf("failed to generate schema: %v", err)
+		}
+
+		var rawParsed map[string]any
+		json.Unmarshal([]byte(schema), &rawParsed)
+		props := rawParsed["properties"].(map[string]any)
+
+		list := props["list"].(map[string]any)
+		if list["type"] != "array" {
+			t.Errorf("expected list.type=array, got %v", list["type"])
+		}
+
+		items := list["items"].(map[string]any)
+		if items["type"] != "string" {
+			t.Errorf("expected list.items.type=string, got %v", items["type"])
+		}
+	})
+
+	t.Run("array of structs", func(t *testing.T) {
+		schema, err := generateJSONSchema[WithArrayOfStructs]()
+		if err != nil {
+			t.Fatalf("failed to generate schema: %v", err)
+		}
+
+		var rawParsed map[string]any
+		json.Unmarshal([]byte(schema), &rawParsed)
+		props := rawParsed["properties"].(map[string]any)
+
+		items := props["items"].(map[string]any)
+		if items["type"] != "array" {
+			t.Errorf("expected items.type=array, got %v", items["type"])
+		}
+
+		arrayItems := items["items"].(map[string]any)
+		if arrayItems["type"] != "object" {
+			t.Errorf("expected items.items.type=object, got %v", arrayItems["type"])
+		}
+
+		// Check nested struct properties are present
+		itemProps := arrayItems["properties"].(map[string]any)
+		if itemProps["value"] == nil {
+			t.Error("expected array item to have 'value' property")
+		}
+	})
+
+	t.Run("map of primitives", func(t *testing.T) {
+		schema, err := generateJSONSchema[WithMap]()
+		if err != nil {
+			t.Fatalf("failed to generate schema: %v", err)
+		}
+
+		var rawParsed map[string]any
+		json.Unmarshal([]byte(schema), &rawParsed)
+		props := rawParsed["properties"].(map[string]any)
+
+		data := props["data"].(map[string]any)
+		if data["type"] != "object" {
+			t.Errorf("expected data.type=object, got %v", data["type"])
+		}
+
+		addProps := data["additionalProperties"].(map[string]any)
+		if addProps["type"] != "string" {
+			t.Errorf("expected data.additionalProperties.type=string, got %v", addProps["type"])
+		}
+	})
+
+	t.Run("map of structs", func(t *testing.T) {
+		schema, err := generateJSONSchema[WithMapOfStructs]()
+		if err != nil {
+			t.Fatalf("failed to generate schema: %v", err)
+		}
+
+		var rawParsed map[string]any
+		json.Unmarshal([]byte(schema), &rawParsed)
+		props := rawParsed["properties"].(map[string]any)
+
+		records := props["records"].(map[string]any)
+		if records["type"] != "object" {
+			t.Errorf("expected records.type=object, got %v", records["type"])
+		}
+
+		addProps := records["additionalProperties"].(map[string]any)
+		if addProps["type"] != "object" {
+			t.Errorf("expected records.additionalProperties.type=object, got %v", addProps["type"])
+		}
+
+		// Check nested struct properties
+		nestedProps := addProps["properties"].(map[string]any)
+		if nestedProps["value"] == nil {
+			t.Error("expected map value struct to have 'value' property")
+		}
+	})
+
+	t.Run("additionalProperties false at root", func(t *testing.T) {
+		schema, err := generateJSONSchema[SimpleStruct]()
+		if err != nil {
+			t.Fatalf("failed to generate schema: %v", err)
+		}
+
+		var rawParsed map[string]any
+		json.Unmarshal([]byte(schema), &rawParsed)
+
+		addProps := rawParsed["additionalProperties"]
+		if addProps != false {
+			t.Errorf("expected root additionalProperties=false, got %v", addProps)
+		}
+	})
+
+	t.Run("deterministic output", func(t *testing.T) {
+		schema1, _ := generateJSONSchema[SimpleStruct]()
+		schema2, _ := generateJSONSchema[SimpleStruct]()
+		if schema1 != schema2 {
+			t.Error("schema generation should be deterministic")
 		}
 	})
 }
 
 func TestGetJSONFieldName(t *testing.T) {
-	t.Run("simple", func(t *testing.T) {
-		field := sentinel.FieldMetadata{
-			Name: "TestField",
-			Tags: map[string]string{"json": "test_field"},
-		}
-		name := getJSONFieldName(field)
-		if name != "test_field" {
-			t.Errorf("Expected 'test_field', got '%s'", name)
-		}
-	})
+	tests := []struct {
+		name     string
+		field    FieldMetadataInput
+		expected string
+	}{
+		{
+			name:     "simple json tag",
+			field:    FieldMetadataInput{Name: "TestField", JSONTag: "test_field"},
+			expected: "test_field",
+		},
+		{
+			name:     "json tag with omitempty",
+			field:    FieldMetadataInput{Name: "TestField", JSONTag: "test_field,omitempty"},
+			expected: "test_field",
+		},
+		{
+			name:     "no json tag",
+			field:    FieldMetadataInput{Name: "TestField", JSONTag: ""},
+			expected: "testfield",
+		},
+		{
+			name:     "json skip tag",
+			field:    FieldMetadataInput{Name: "TestField", JSONTag: "-"},
+			expected: "-",
+		},
+	}
 
-	t.Run("reliability", func(t *testing.T) {
-		// Test with omitempty
-		field := sentinel.FieldMetadata{
-			Name: "TestField",
-			Tags: map[string]string{"json": "test_field,omitempty"},
-		}
-		name := getJSONFieldName(field)
-		if name != "test_field" {
-			t.Errorf("Expected 'test_field' (without omitempty), got '%s'", name)
-		}
-	})
-
-	t.Run("chaining", func(t *testing.T) {
-		// Test field name extraction works with buildProperties
-		field := sentinel.FieldMetadata{
-			Name: "TestField",
-			Tags: map[string]string{"json": "custom_name"},
-			Type: "string",
-		}
-		props := buildProperties([]sentinel.FieldMetadata{field})
-		if props["custom_name"] == nil {
-			t.Error("Custom field name should appear in properties")
-		}
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			field := tt.field.toSentinelField()
+			result := getJSONFieldName(field)
+			if result != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
 }
 
 func TestHasOmitempty(t *testing.T) {
-	t.Run("simple", func(t *testing.T) {
-		field := sentinel.FieldMetadata{
-			Tags: map[string]string{"json": "field,omitempty"},
-		}
-		if !hasOmitempty(field) {
-			t.Error("Expected hasOmitempty to return true")
-		}
-	})
+	tests := []struct {
+		name     string
+		jsonTag  string
+		expected bool
+	}{
+		{"with omitempty", "field,omitempty", true},
+		{"without omitempty", "field", false},
+		{"empty tag", "", false},
+	}
 
-	t.Run("reliability", func(t *testing.T) {
-		// Test without omitempty
-		field := sentinel.FieldMetadata{
-			Tags: map[string]string{"json": "field"},
-		}
-		if hasOmitempty(field) {
-			t.Error("Expected hasOmitempty to return false")
-		}
-
-		// Test with no json tag
-		fieldNoTag := sentinel.FieldMetadata{
-			Tags: map[string]string{},
-		}
-		if hasOmitempty(fieldNoTag) {
-			t.Error("Expected hasOmitempty to return false for field with no tag")
-		}
-	})
-
-	t.Run("chaining", func(t *testing.T) {
-		// Test hasOmitempty detection works with buildRequiredFields
-		withOmit := sentinel.FieldMetadata{
-			Name: "Optional",
-			Tags: map[string]string{"json": "optional,omitempty"},
-			Type: "string",
-		}
-		withoutOmit := sentinel.FieldMetadata{
-			Name: "Required",
-			Tags: map[string]string{"json": "required"},
-			Type: "string",
-		}
-		required := buildRequiredFields([]sentinel.FieldMetadata{withOmit, withoutOmit})
-
-		hasOptional := false
-		hasRequired := false
-		for _, name := range required {
-			if name == "optional" {
-				hasOptional = true
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			field := FieldMetadataInput{Name: "Test", JSONTag: tt.jsonTag}.toSentinelField()
+			result := hasOmitempty(field)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, result)
 			}
-			if name == "required" {
-				hasRequired = true
-			}
-		}
-		if hasOptional {
-			t.Error("Optional field should not be in required list")
-		}
-		if !hasRequired {
-			t.Error("Required field should be in required list")
-		}
-	})
+		})
+	}
 }
 
 func TestGoTypeToJSONType(t *testing.T) {
@@ -257,43 +319,57 @@ func TestGoTypeToJSONType(t *testing.T) {
 		{"int", "integer"},
 		{"int32", "integer"},
 		{"int64", "integer"},
+		{"uint", "integer"},
 		{"float32", "number"},
 		{"float64", "number"},
 		{"bool", "boolean"},
-		{"[]string", "array"},
-		{"[]int", "array"},
-		{"map[string]string", "object"},
 		{"CustomType", "object"},
 	}
 
-	t.Run("simple", func(t *testing.T) {
-		result := goTypeToJSONType("string")
-		if result != "string" {
-			t.Errorf("Expected 'string', got '%s'", result)
-		}
-	})
-
-	t.Run("reliability", func(t *testing.T) {
-		// Test all type conversions
-		for _, tt := range tests {
+	for _, tt := range tests {
+		t.Run(tt.goType, func(t *testing.T) {
 			result := goTypeToJSONType(tt.goType)
 			if result != tt.jsonType {
-				t.Errorf("goTypeToJSONType(%s) = %s, want %s", tt.goType, result, tt.jsonType)
+				t.Errorf("goTypeToJSONType(%q) = %q, want %q", tt.goType, result, tt.jsonType)
 			}
-		}
-	})
+		})
+	}
+}
 
-	t.Run("chaining", func(t *testing.T) {
-		// Test type conversion works with buildProperties
-		field := sentinel.FieldMetadata{
-			Name: "Count",
-			Tags: map[string]string{"json": "count"},
-			Type: "int",
-		}
-		props := buildProperties([]sentinel.FieldMetadata{field})
-		countProp := props["count"].(map[string]interface{})
-		if countProp["type"] != "integer" {
-			t.Errorf("Expected type=integer for int field, got %v", countProp["type"])
-		}
-	})
+func TestParseMapValueType(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"map[string]string", "string"},
+		{"map[string]int", "int"},
+		{"map[string][]string", "[]string"},
+		{"map[int]bool", "bool"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := parseMapValueType(tt.input)
+			if result != tt.expected {
+				t.Errorf("parseMapValueType(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+// Helper for creating test sentinel field metadata.
+type FieldMetadataInput struct {
+	Name    string
+	JSONTag string
+}
+
+func (f FieldMetadataInput) toSentinelField() sentinel.FieldMetadata {
+	tags := make(map[string]string)
+	if f.JSONTag != "" {
+		tags["json"] = f.JSONTag
+	}
+	return sentinel.FieldMetadata{
+		Name: f.Name,
+		Tags: tags,
+	}
 }

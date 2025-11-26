@@ -15,7 +15,7 @@ func TestNewService(t *testing.T) {
 			return req, nil
 		})
 
-		service := NewService[BinaryResponse](pipeline, "test", provider)
+		service := NewService[BinaryResponse](pipeline, "test", provider, DefaultTemperatureDeterministic)
 
 		if service == nil {
 			t.Fatal("Expected service to be created")
@@ -33,7 +33,7 @@ func TestNewService(t *testing.T) {
 			return req, nil
 		})
 
-		service := NewService[BinaryResponse](pipeline, "test", provider)
+		service := NewService[BinaryResponse](pipeline, "test", provider, DefaultTemperatureDeterministic)
 
 		if service == nil {
 			t.Fatal("Expected service to be created with failing pipeline")
@@ -51,7 +51,7 @@ func TestNewService(t *testing.T) {
 		})
 		combined := pipz.NewSequence("combined", pipeline1, pipeline2)
 
-		service := NewService[BinaryResponse](combined, "test", provider)
+		service := NewService[BinaryResponse](combined, "test", provider, DefaultTemperatureDeterministic)
 
 		if service.GetPipeline() == nil {
 			t.Error("Service pipeline should be accessible")
@@ -65,7 +65,7 @@ func TestService_GetPipeline(t *testing.T) {
 		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, nil
 		})
-		service := NewService[BinaryResponse](pipeline, "test", provider)
+		service := NewService[BinaryResponse](pipeline, "test", provider, DefaultTemperatureDeterministic)
 
 		retrieved := service.GetPipeline()
 		if retrieved == nil {
@@ -80,7 +80,7 @@ func TestService_GetPipeline(t *testing.T) {
 			counter++
 			return req, nil
 		})
-		service := NewService[BinaryResponse](pipeline, "test", provider)
+		service := NewService[BinaryResponse](pipeline, "test", provider, DefaultTemperatureDeterministic)
 
 		retrieved := service.GetPipeline()
 		if retrieved == nil {
@@ -104,7 +104,7 @@ func TestService_GetPipeline(t *testing.T) {
 			req.Response = `{"decision": true, "confidence": 0.9, "reasoning": ["test"]}`
 			return req, nil
 		})
-		service := NewService[BinaryResponse](pipeline, "test", provider)
+		service := NewService[BinaryResponse](pipeline, "test", provider, DefaultTemperatureDeterministic)
 
 		ctx := context.Background()
 		prompt := &Prompt{Task: "test", Input: "test", Schema: "{}"}
@@ -123,11 +123,11 @@ func TestService_Execute(t *testing.T) {
 			req.Response = `{"decision": true, "confidence": 0.9, "reasoning": ["test"]}`
 			return req, nil
 		})
-		service := NewService[BinaryResponse](pipeline, "test", provider)
+		service := NewService[BinaryResponse](pipeline, "test", provider, DefaultTemperatureDeterministic)
 
 		ctx := context.Background()
 		prompt := &Prompt{Task: "test", Input: "test", Schema: "{}"}
-		response, err := service.Execute(ctx, prompt, 0.5)
+		response, err := service.Execute(ctx, NewSession(), prompt, 0.5)
 		if err != nil {
 			t.Fatalf("Execute failed: %v", err)
 		}
@@ -147,11 +147,11 @@ func TestService_Execute(t *testing.T) {
 			req.Response = `{"decision": true, "confidence": 0.8, "reasoning": ["test"]}`
 			return req, nil
 		})
-		service := NewService[BinaryResponse](pipeline, "test", provider)
+		service := NewService[BinaryResponse](pipeline, "test", provider, DefaultTemperatureDeterministic)
 
 		ctx := context.Background()
 		prompt := &Prompt{Task: "test", Input: "test", Schema: "{}"}
-		_, err := service.Execute(ctx, prompt, 0.5)
+		_, err := service.Execute(ctx, NewSession(), prompt, 0.5)
 		if err == nil {
 			t.Error("Expected error from failing pipeline")
 		}
@@ -168,11 +168,11 @@ func TestService_Execute(t *testing.T) {
 			return req, nil
 		})
 		combined := pipz.NewSequence("combined", modifyPipeline, executePipeline)
-		service := NewService[BinaryResponse](combined, "test", provider)
+		service := NewService[BinaryResponse](combined, "test", provider, DefaultTemperatureDeterministic)
 
 		ctx := context.Background()
 		prompt := &Prompt{Task: "test", Input: "test", Schema: "{}"}
-		response, err := service.Execute(ctx, prompt, 0.5)
+		response, err := service.Execute(ctx, NewSession(), prompt, 0.5)
 		if err != nil {
 			t.Fatalf("Execute with chained pipeline failed: %v", err)
 		}

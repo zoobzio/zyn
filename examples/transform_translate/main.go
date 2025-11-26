@@ -26,10 +26,13 @@ func main() {
 	})
 
 	// Create transformation synapse
-	synapse := zyn.Transform("translate technical jargon to plain English", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Transform("translate technical jargon to plain English", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Simplify technical text
-	response, err := synapse.FireWithInputDetails(ctx, zyn.TransformInput{
+	response, err := synapse.FireWithInputDetails(ctx, zyn.NewSession(), zyn.TransformInput{
 		Text: "The distributed consensus algorithm leverages Raft protocol to ensure consistency across replicas.",
 		Examples: map[string]string{
 			"The API uses RESTful endpoints": "The system uses web addresses to send and receive data",

@@ -19,7 +19,10 @@ func (ExtractData) Validate() error {
 func TestNewExtraction(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewExtraction[ExtractData]("extract data", provider)
+		synapse, err := NewExtraction[ExtractData]("extract data", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Expected synapse to be created")
@@ -31,9 +34,12 @@ func TestNewExtraction(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewExtraction[ExtractData]("extract data", provider,
+		synapse, err := NewExtraction[ExtractData]("extract data", provider,
 			WithRetry(3),
 			WithTimeout(10*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Expected synapse with reliability options to be created")
@@ -43,10 +49,16 @@ func TestNewExtraction(t *testing.T) {
 	t.Run("chaining", func(t *testing.T) {
 		primary := NewMockProviderWithName("primary")
 		fallback := NewMockProviderWithName("fallback")
-		fallbackSynapse := NewExtraction[ExtractData]("extract data", fallback)
+		fallbackSynapse, err := NewExtraction[ExtractData]("extract data", fallback)
+		if err != nil {
+			t.Fatalf("failed to create fallback synapse: %v", err)
+		}
 
-		synapse := NewExtraction[ExtractData]("extract data", primary,
+		synapse, err := NewExtraction[ExtractData]("extract data", primary,
 			WithFallback(fallbackSynapse))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Expected synapse with fallback to be created")
@@ -57,7 +69,10 @@ func TestNewExtraction(t *testing.T) {
 func TestExtractionSynapse_GetPipeline(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewExtraction[ExtractData]("test", provider)
+		synapse, err := NewExtraction[ExtractData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		pipeline := synapse.GetPipeline()
 		if pipeline == nil {
@@ -67,7 +82,10 @@ func TestExtractionSynapse_GetPipeline(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewExtraction[ExtractData]("test", provider, WithRetry(3))
+		synapse, err := NewExtraction[ExtractData]("test", provider, WithRetry(3))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		pipeline := synapse.GetPipeline()
 		if pipeline == nil {
@@ -77,7 +95,10 @@ func TestExtractionSynapse_GetPipeline(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewExtraction[ExtractData]("test", provider)
+		synapse, err := NewExtraction[ExtractData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		pipeline := synapse.GetPipeline()
 		if pipeline == nil {
@@ -87,7 +108,7 @@ func TestExtractionSynapse_GetPipeline(t *testing.T) {
 		ctx := context.Background()
 		prompt := &Prompt{Task: "test", Input: "test", Schema: "{}"}
 		req := &SynapseRequest{Prompt: prompt, Temperature: 0.5}
-		_, err := pipeline.Process(ctx, req)
+		_, err = pipeline.Process(ctx, req)
 		if err != nil {
 			t.Errorf("Pipeline processing failed: %v", err)
 		}
@@ -97,7 +118,10 @@ func TestExtractionSynapse_GetPipeline(t *testing.T) {
 func TestExtractionSynapse_WithDefaults(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewExtraction[ExtractData]("test", provider)
+		synapse, err := NewExtraction[ExtractData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		defaults := ExtractionInput{
 			Context:     "default context",
@@ -115,7 +139,10 @@ func TestExtractionSynapse_WithDefaults(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewExtraction[ExtractData]("test", provider, WithRetry(3))
+		synapse, err := NewExtraction[ExtractData]("test", provider, WithRetry(3))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		defaults := ExtractionInput{Temperature: 0.7}
 		synapseWithDefaults := synapse.WithDefaults(defaults)
@@ -127,11 +154,14 @@ func TestExtractionSynapse_WithDefaults(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"name": "test", "value": 42, "items": ["a", "b"]}`)
-		synapse := NewExtraction[ExtractData]("test", provider).
-			WithDefaults(ExtractionInput{Context: "default", Temperature: 0.5})
+		synapse, err := NewExtraction[ExtractData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
+		synapse = synapse.WithDefaults(ExtractionInput{Context: "default", Temperature: 0.5})
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, "test text")
+		result, err := synapse.Fire(ctx, NewSession(), "test text")
 		if err != nil {
 			t.Errorf("Fire failed with defaults: %v", err)
 		}
@@ -144,10 +174,13 @@ func TestExtractionSynapse_WithDefaults(t *testing.T) {
 func TestExtractionSynapse_Fire(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"name": "extracted", "value": 100, "items": ["item1"]}`)
-		synapse := NewExtraction[ExtractData]("extract data", provider)
+		synapse, err := NewExtraction[ExtractData]("extract data", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, "Some text with data to extract")
+		result, err := synapse.Fire(ctx, NewSession(), "Some text with data to extract")
 		if err != nil {
 			t.Fatalf("Fire failed: %v", err)
 		}
@@ -158,12 +191,15 @@ func TestExtractionSynapse_Fire(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"name": "test", "value": 1, "items": []}`)
-		synapse := NewExtraction[ExtractData]("test", provider,
+		synapse, err := NewExtraction[ExtractData]("test", provider,
 			WithRetry(2),
 			WithTimeout(5*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, "test input")
+		result, err := synapse.Fire(ctx, NewSession(), "test input")
 		if err != nil {
 			t.Fatalf("Fire with reliability options failed: %v", err)
 		}
@@ -175,13 +211,19 @@ func TestExtractionSynapse_Fire(t *testing.T) {
 	t.Run("chaining", func(t *testing.T) {
 		failing := NewMockProviderWithError("primary failed")
 		fallbackProvider := NewMockProviderWithResponse(`{"name": "fallback", "value": 99, "items": ["fb"]}`)
-		fallbackSynapse := NewExtraction[ExtractData]("test", fallbackProvider)
+		fallbackSynapse, err := NewExtraction[ExtractData]("test", fallbackProvider)
+		if err != nil {
+			t.Fatalf("failed to create fallback synapse: %v", err)
+		}
 
-		synapse := NewExtraction[ExtractData]("test", failing,
+		synapse, err := NewExtraction[ExtractData]("test", failing,
 			WithFallback(fallbackSynapse))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, "test")
+		result, err := synapse.Fire(ctx, NewSession(), "test")
 		if err != nil {
 			t.Fatalf("Fire with fallback failed: %v", err)
 		}
@@ -194,14 +236,17 @@ func TestExtractionSynapse_Fire(t *testing.T) {
 func TestExtractionSynapse_FireWithInput(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"name": "extracted", "value": 50, "items": ["a", "b"]}`)
-		synapse := NewExtraction[ExtractData]("test", provider)
+		synapse, err := NewExtraction[ExtractData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := ExtractionInput{
 			Text:    "Text to extract from",
 			Context: "test context",
 		}
-		result, err := synapse.FireWithInput(ctx, input)
+		result, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput failed: %v", err)
 		}
@@ -212,15 +257,18 @@ func TestExtractionSynapse_FireWithInput(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"name": "test", "value": 1, "items": []}`)
-		synapse := NewExtraction[ExtractData]("test", provider,
+		synapse, err := NewExtraction[ExtractData]("test", provider,
 			WithCircuitBreaker(5, 30*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := ExtractionInput{
 			Text:        "test",
 			Temperature: 0.3,
 		}
-		result, err := synapse.FireWithInput(ctx, input)
+		result, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput with circuit breaker failed: %v", err)
 		}
@@ -235,14 +283,18 @@ func TestExtractionSynapse_FireWithInput(t *testing.T) {
 			Context:  "default context",
 			Examples: "default examples",
 		}
-		synapse := NewExtraction[ExtractData]("test", provider).WithDefaults(defaults)
+		synapse, err := NewExtraction[ExtractData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
+		synapse = synapse.WithDefaults(defaults)
 
 		ctx := context.Background()
 		input := ExtractionInput{
 			Text:     "test text",
 			Examples: "override examples",
 		}
-		result, err := synapse.FireWithInput(ctx, input)
+		result, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput with defaults merge failed: %v", err)
 		}
@@ -255,7 +307,10 @@ func TestExtractionSynapse_FireWithInput(t *testing.T) {
 func TestExtractionSynapse_mergeInputs(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewExtraction[ExtractData]("test", provider)
+		synapse, err := NewExtraction[ExtractData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 		synapse.defaults = ExtractionInput{
 			Context: "default context",
 		}
@@ -275,7 +330,10 @@ func TestExtractionSynapse_mergeInputs(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewExtraction[ExtractData]("test", provider)
+		synapse, err := NewExtraction[ExtractData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 		synapse.defaults = ExtractionInput{
 			Context:     "default",
 			Temperature: 0.5,
@@ -298,7 +356,10 @@ func TestExtractionSynapse_mergeInputs(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewExtraction[ExtractData]("test", provider)
+		synapse, err := NewExtraction[ExtractData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 		synapse.defaults = ExtractionInput{
 			Context:  "default",
 			Examples: "default examples",
@@ -322,7 +383,10 @@ func TestExtractionSynapse_mergeInputs(t *testing.T) {
 func TestExtractionSynapse_buildPrompt(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewExtraction[ExtractData]("extract data", provider)
+		synapse, err := NewExtraction[ExtractData]("extract data", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		input := ExtractionInput{
 			Text: "text to extract from",
@@ -342,7 +406,10 @@ func TestExtractionSynapse_buildPrompt(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewExtraction[ExtractData]("test", provider)
+		synapse, err := NewExtraction[ExtractData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		input := ExtractionInput{
 			Text:     "test",
@@ -364,7 +431,10 @@ func TestExtractionSynapse_buildPrompt(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewExtraction[ExtractData]("test", provider)
+		synapse, err := NewExtraction[ExtractData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		input := ExtractionInput{
 			Text: "test",
@@ -380,7 +450,10 @@ func TestExtractionSynapse_buildPrompt(t *testing.T) {
 func TestExtract(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Extract[ExtractData]("extract data", provider)
+		synapse, err := Extract[ExtractData]("extract data", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Extract wrapper returned nil")
@@ -389,16 +462,19 @@ func TestExtract(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Extract[ExtractData]("extract data", provider,
+		synapse, err := Extract[ExtractData]("extract data", provider,
 			WithRetry(3),
 			WithTimeout(10*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Extract wrapper with options returned nil")
 		}
 
 		ctx := context.Background()
-		_, err := synapse.Fire(ctx, "test text")
+		_, err = synapse.Fire(ctx, NewSession(), "test text")
 		if err != nil {
 			t.Errorf("Extract synapse Fire failed: %v", err)
 		}
@@ -406,11 +482,14 @@ func TestExtract(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"name": "test", "value": 42, "items": ["x"]}`)
-		synapse := Extract[ExtractData]("extract data", provider).
-			WithDefaults(ExtractionInput{Context: "test context"})
+		synapse, err := Extract[ExtractData]("extract data", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
+		synapse = synapse.WithDefaults(ExtractionInput{Context: "test context"})
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, "test text")
+		result, err := synapse.Fire(ctx, NewSession(), "test text")
 		if err != nil {
 			t.Fatalf("Extract with chaining failed: %v", err)
 		}

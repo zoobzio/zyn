@@ -39,10 +39,13 @@ func main() {
 	})
 
 	// Create extraction synapse
-	synapse := zyn.Extract[EntityExtraction]("person names and organizations", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Extract[EntityExtraction]("person names and organizations", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Extract entities
-	response, err := synapse.FireWithInput(ctx, zyn.ExtractionInput{
+	response, err := synapse.FireWithInput(ctx, zyn.NewSession(), zyn.ExtractionInput{
 		Text: "Apple CEO Tim Cook announced a partnership with Microsoft and Google. " +
 			"Satya Nadella and Sundar Pichai will join the board.",
 		Context: "News article processing",

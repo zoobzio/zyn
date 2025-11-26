@@ -87,36 +87,28 @@ type SentimentSynapse struct {
 }
 
 // NewSentiment creates a new sentiment analysis synapse bound to a provider.
-func NewSentiment(analysisType string, provider Provider, opts ...Option) *SentimentSynapse {
+// Returns an error if the JSON schema cannot be generated.
+func NewSentiment(analysisType string, provider Provider, opts ...Option) (*SentimentSynapse, error) {
 	// Generate schema once at construction
-	schema := generateJSONSchema[SentimentResponse]()
-
-	// Create terminal processor that calls the provider
-	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
-		// Render prompt to string for provider
-		promptStr := req.Prompt.Render()
-		response, err := provider.Call(ctx, promptStr, req.Temperature)
-		if err != nil {
-			return req, err
-		}
-		req.Response = response
-		return req, nil
-	})
+	schema, err := generateJSONSchema[SentimentResponse]()
+	if err != nil {
+		return nil, fmt.Errorf("sentiment synapse: %w", err)
+	}
 
 	// Apply options to build pipeline
-	var pipeline pipz.Chainable[*SynapseRequest] = terminal
+	var pipeline pipz.Chainable[*SynapseRequest] = NewTerminal(provider)
 	for _, opt := range opts {
 		pipeline = opt(pipeline)
 	}
 
-	// Create service with final pipeline
-	svc := NewService[SentimentResponse](pipeline, "sentiment", provider)
+	// Create service with final pipeline and default temperature
+	svc := NewService[SentimentResponse](pipeline, "sentiment", provider, DefaultTemperatureAnalytical)
 
 	return &SentimentSynapse{
 		analysisType: analysisType,
 		schema:       schema,
 		service:      svc,
-	}
+	}, nil
 }
 
 // GetPipeline returns the internal pipeline for composition.
@@ -132,8 +124,8 @@ func (s *SentimentSynapse) WithDefaults(defaults SentimentInput) *SentimentSynap
 
 // Fire executes sentiment analysis on text.
 // Returns the overall sentiment classification.
-func (s *SentimentSynapse) Fire(ctx context.Context, text string) (string, error) {
-	response, err := s.FireWithDetails(ctx, text)
+func (s *SentimentSynapse) Fire(ctx context.Context, session *Session, text string) (string, error) {
+	response, err := s.FireWithDetails(ctx, session, text)
 	if err != nil {
 		return "", err
 	}
@@ -141,30 +133,21 @@ func (s *SentimentSynapse) Fire(ctx context.Context, text string) (string, error
 }
 
 // FireWithDetails executes sentiment analysis and returns full details.
-func (s *SentimentSynapse) FireWithDetails(ctx context.Context, text string) (SentimentResponse, error) {
+func (s *SentimentSynapse) FireWithDetails(ctx context.Context, session *Session, text string) (SentimentResponse, error) {
 	input := SentimentInput{Text: text}
-	return s.FireWithInput(ctx, input)
+	return s.FireWithInput(ctx, session, input)
 }
 
 // FireWithInput executes sentiment analysis with rich input structure.
-func (s *SentimentSynapse) FireWithInput(ctx context.Context, input SentimentInput) (SentimentResponse, error) {
+func (s *SentimentSynapse) FireWithInput(ctx context.Context, session *Session, input SentimentInput) (SentimentResponse, error) {
 	// Merge defaults with user input
 	merged := s.mergeInputs(input)
 
 	// Build prompt
 	prompt := s.buildPrompt(merged)
 
-	// Determine temperature
-	temperature := merged.Temperature
-	if temperature == 0 && s.defaults.Temperature != 0 {
-		temperature = s.defaults.Temperature
-	}
-	if temperature == 0 {
-		temperature = DefaultTemperatureAnalytical
-	}
-
-	// Execute through service
-	response, err := s.service.Execute(ctx, prompt, temperature)
+	// Execute through service with session (service handles temperature fallback)
+	response, err := s.service.Execute(ctx, session, prompt, merged.Temperature)
 	if err != nil {
 		return response, err
 	}
@@ -188,7 +171,7 @@ func (s *SentimentSynapse) mergeInputs(input SentimentInput) SentimentInput {
 	if len(input.Aspects) > 0 {
 		merged.Aspects = append(merged.Aspects, input.Aspects...)
 	}
-	if input.Temperature != 0 {
+	if input.Temperature != 0 && input.Temperature != TemperatureUnset {
 		merged.Temperature = input.Temperature
 	}
 
@@ -240,15 +223,16 @@ func normalizeSentiment(sentiment string) string {
 
 // Sentiment creates a new sentiment analysis synapse bound to a provider.
 // The synapse analyzes emotional tone and sentiment of text.
+// Returns an error if the JSON schema cannot be generated.
 //
 // Example:
 //
-//	synapse := Sentiment("customer feedback", provider)
+//	synapse, err := Sentiment("customer feedback", provider)
 //	sentiment, err := synapse.Fire(ctx, "This product exceeded my expectations!")
 //	// Returns: "positive"
 //
 //	details, err := synapse.FireWithDetails(ctx, text)
 //	// Returns full analysis with scores and emotions
-func Sentiment(analysisType string, provider Provider, opts ...Option) *SentimentSynapse {
+func Sentiment(analysisType string, provider Provider, opts ...Option) (*SentimentSynapse, error) {
 	return NewSentiment(analysisType, provider, opts...)
 }

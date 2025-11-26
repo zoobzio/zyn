@@ -27,39 +27,28 @@ type ConvertSynapse[TInput any, TOutput Validator] struct {
 
 // Convert creates a new struct-to-struct conversion synapse.
 // TOutput must implement Validator to ensure converted data is valid.
-func Convert[TInput any, TOutput Validator](instruction string, provider Provider, opts ...Option) *ConvertSynapse[TInput, TOutput] {
+// Returns an error if the JSON schema cannot be generated.
+func Convert[TInput any, TOutput Validator](instruction string, provider Provider, opts ...Option) (*ConvertSynapse[TInput, TOutput], error) {
 	// Pre-compute the output schema once at construction
-	outputSchema := generateJSONSchema[TOutput]()
-
-	// Create terminal pipeline stage that calls the provider
-	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
-		// Render prompt to string for provider
-		promptStr := req.Prompt.Render()
-		response, err := provider.Call(ctx, promptStr, req.Temperature)
-		if err != nil {
-			return req, err
-		}
-		req.Response = response
-		return req, nil
-	})
+	outputSchema, err := generateJSONSchema[TOutput]()
+	if err != nil {
+		return nil, fmt.Errorf("convert synapse: %w", err)
+	}
 
 	// Apply options to build pipeline
-	var pipeline pipz.Chainable[*SynapseRequest] = terminal
+	var pipeline pipz.Chainable[*SynapseRequest] = NewTerminal(provider)
 	for _, opt := range opts {
 		pipeline = opt(pipeline)
 	}
 
-	// Create service with final pipeline
-	svc := NewService[TOutput](pipeline, "convert", provider)
+	// Create service with final pipeline and default temperature
+	svc := NewService[TOutput](pipeline, "convert", provider, DefaultTemperatureDeterministic)
 
 	return &ConvertSynapse[TInput, TOutput]{
 		instruction:  instruction,
 		outputSchema: outputSchema,
-		defaults: ConvertInput[TInput]{
-			Temperature: DefaultTemperatureDeterministic,
-		},
-		service: svc,
-	}
+		service:      svc,
+	}, nil
 }
 
 // GetPipeline returns the underlying pipeline.
@@ -68,30 +57,21 @@ func (c *ConvertSynapse[TInput, TOutput]) GetPipeline() pipz.Chainable[*SynapseR
 }
 
 // Fire performs the conversion with structured input.
-func (c *ConvertSynapse[TInput, TOutput]) Fire(ctx context.Context, data TInput) (TOutput, error) {
+func (c *ConvertSynapse[TInput, TOutput]) Fire(ctx context.Context, session *Session, data TInput) (TOutput, error) {
 	input := ConvertInput[TInput]{Data: data}
-	return c.FireWithInput(ctx, input)
+	return c.FireWithInput(ctx, session, input)
 }
 
 // FireWithInput performs the conversion with rich input.
-func (c *ConvertSynapse[TInput, TOutput]) FireWithInput(ctx context.Context, input ConvertInput[TInput]) (TOutput, error) {
+func (c *ConvertSynapse[TInput, TOutput]) FireWithInput(ctx context.Context, session *Session, input ConvertInput[TInput]) (TOutput, error) {
 	// Merge defaults with user input
 	merged := c.mergeInputs(input)
 
 	// Build prompt
 	prompt := c.buildPrompt(merged)
 
-	// Determine temperature
-	temperature := merged.Temperature
-	if temperature == 0 && c.defaults.Temperature != 0 {
-		temperature = c.defaults.Temperature
-	}
-	if temperature == 0 {
-		temperature = DefaultTemperatureDeterministic
-	}
-
-	// Execute through service
-	result, err := c.service.Execute(ctx, prompt, temperature)
+	// Execute through service with session (service handles temperature fallback)
+	result, err := c.service.Execute(ctx, session, prompt, merged.Temperature)
 	if err != nil {
 		var zero TOutput
 		return zero, fmt.Errorf("conversion failed: %w", err)
@@ -113,7 +93,7 @@ func (c *ConvertSynapse[TInput, TOutput]) mergeInputs(input ConvertInput[TInput]
 	if input.Rules != "" {
 		merged.Rules = input.Rules
 	}
-	if input.Temperature != 0 {
+	if input.Temperature != 0 && input.Temperature != TemperatureUnset {
 		merged.Temperature = input.Temperature
 	}
 

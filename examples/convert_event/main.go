@@ -51,10 +51,13 @@ func main() {
 	})
 
 	// Create convert synapse
-	synapse := zyn.Convert[RawEvent, StructuredEvent]("transform raw event to structured format", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Convert[RawEvent, StructuredEvent]("transform raw event to structured format", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Convert event
-	response, err := synapse.FireWithInput(ctx, zyn.ConvertInput[RawEvent]{
+	response, err := synapse.FireWithInput(ctx, zyn.NewSession(), zyn.ConvertInput[RawEvent]{
 		Data: RawEvent{
 			Type:      "user_action",
 			Timestamp: 1704067200,

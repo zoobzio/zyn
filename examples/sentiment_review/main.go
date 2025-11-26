@@ -26,10 +26,13 @@ func main() {
 	})
 
 	// Create sentiment synapse
-	synapse := zyn.Sentiment("product review sentiment", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Sentiment("product review sentiment", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Analyze product review
-	response, err := synapse.FireWithInput(ctx, zyn.SentimentInput{
+	response, err := synapse.FireWithInput(ctx, zyn.NewSession(), zyn.SentimentInput{
 		Text:    "The product quality is excellent but the delivery was extremely slow.",
 		Context: "Customer product review",
 		Aspects: []string{"product quality", "delivery speed"},

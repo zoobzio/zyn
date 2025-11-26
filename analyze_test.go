@@ -14,7 +14,10 @@ type TestData struct {
 func TestAnalyze(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Analyze[TestData]("data quality", provider)
+		synapse, err := Analyze[TestData]("data quality", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Analyze wrapper returned nil")
@@ -23,16 +26,19 @@ func TestAnalyze(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Analyze[TestData]("data quality", provider,
+		synapse, err := Analyze[TestData]("data quality", provider,
 			WithRetry(3),
 			WithTimeout(10*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Analyze wrapper with options returned nil")
 		}
 
 		ctx := context.Background()
-		_, err := synapse.Fire(ctx, TestData{Value: 42, Name: "test"})
+		_, err = synapse.Fire(ctx, NewSession(), TestData{Value: 42, Name: "test"})
 		if err != nil {
 			t.Errorf("Analyze synapse Fire failed: %v", err)
 		}
@@ -40,10 +46,13 @@ func TestAnalyze(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"analysis": "test result", "confidence": 0.9, "findings": [], "reasoning": ["test"]}`)
-		synapse := Analyze[TestData]("data quality", provider)
+		synapse, err := Analyze[TestData]("data quality", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, TestData{Value: 42, Name: "test"})
+		result, err := synapse.Fire(ctx, NewSession(), TestData{Value: 42, Name: "test"})
 		if err != nil {
 			t.Fatalf("Analyze with chaining failed: %v", err)
 		}
@@ -56,7 +65,10 @@ func TestAnalyze(t *testing.T) {
 func TestAnalyzeSynapse_GetPipeline(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Analyze[TestData]("test", provider)
+		synapse, err := Analyze[TestData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		pipeline := synapse.GetPipeline()
 		if pipeline == nil {
@@ -66,7 +78,10 @@ func TestAnalyzeSynapse_GetPipeline(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Analyze[TestData]("test", provider, WithRetry(3))
+		synapse, err := Analyze[TestData]("test", provider, WithRetry(3))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		pipeline := synapse.GetPipeline()
 		if pipeline == nil {
@@ -76,7 +91,10 @@ func TestAnalyzeSynapse_GetPipeline(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Analyze[TestData]("test", provider)
+		synapse, err := Analyze[TestData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		pipeline := synapse.GetPipeline()
 		if pipeline == nil {
@@ -86,7 +104,7 @@ func TestAnalyzeSynapse_GetPipeline(t *testing.T) {
 		ctx := context.Background()
 		prompt := &Prompt{Task: "test", Input: "test", Schema: "{}"}
 		req := &SynapseRequest{Prompt: prompt, Temperature: 0.5}
-		_, err := pipeline.Process(ctx, req)
+		_, err = pipeline.Process(ctx, req)
 		if err != nil {
 			t.Errorf("Pipeline processing failed: %v", err)
 		}
@@ -96,10 +114,13 @@ func TestAnalyzeSynapse_GetPipeline(t *testing.T) {
 func TestAnalyzeSynapse_Fire(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"analysis": "valid data", "confidence": 0.9, "findings": [], "reasoning": ["test"]}`)
-		synapse := Analyze[TestData]("data quality", provider)
+		synapse, err := Analyze[TestData]("data quality", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, TestData{Value: 42, Name: "test"})
+		result, err := synapse.Fire(ctx, NewSession(), TestData{Value: 42, Name: "test"})
 		if err != nil {
 			t.Fatalf("Fire failed: %v", err)
 		}
@@ -110,12 +131,15 @@ func TestAnalyzeSynapse_Fire(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"analysis": "test", "confidence": 0.9, "findings": [], "reasoning": ["test"]}`)
-		synapse := Analyze[TestData]("test", provider,
+		synapse, err := Analyze[TestData]("test", provider,
 			WithRetry(2),
 			WithTimeout(5*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, TestData{Value: 1, Name: "test"})
+		result, err := synapse.Fire(ctx, NewSession(), TestData{Value: 1, Name: "test"})
 		if err != nil {
 			t.Fatalf("Fire with reliability options failed: %v", err)
 		}
@@ -127,13 +151,19 @@ func TestAnalyzeSynapse_Fire(t *testing.T) {
 	t.Run("chaining", func(t *testing.T) {
 		failing := NewMockProviderWithError("primary failed")
 		fallbackProvider := NewMockProviderWithResponse(`{"analysis": "fallback analysis", "confidence": 0.8, "findings": [], "reasoning": ["fallback"]}`)
-		fallbackSynapse := Analyze[TestData]("test", fallbackProvider)
+		fallbackSynapse, err := Analyze[TestData]("test", fallbackProvider)
+		if err != nil {
+			t.Fatalf("failed to create fallback synapse: %v", err)
+		}
 
-		synapse := Analyze[TestData]("test", failing,
+		synapse, err := Analyze[TestData]("test", failing,
 			WithFallback(fallbackSynapse))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, TestData{Value: 1, Name: "test"})
+		result, err := synapse.Fire(ctx, NewSession(), TestData{Value: 1, Name: "test"})
 		if err != nil {
 			t.Fatalf("Fire with fallback failed: %v", err)
 		}
@@ -146,10 +176,13 @@ func TestAnalyzeSynapse_Fire(t *testing.T) {
 func TestAnalyzeSynapse_FireWithDetails(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"analysis": "detailed analysis", "confidence": 0.95, "findings": ["finding1"], "reasoning": ["reason1"]}`)
-		synapse := Analyze[TestData]("test", provider)
+		synapse, err := Analyze[TestData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		response, err := synapse.FireWithDetails(ctx, TestData{Value: 42, Name: "test"})
+		response, err := synapse.FireWithDetails(ctx, NewSession(), TestData{Value: 42, Name: "test"})
 		if err != nil {
 			t.Fatalf("FireWithDetails failed: %v", err)
 		}
@@ -163,12 +196,15 @@ func TestAnalyzeSynapse_FireWithDetails(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"analysis": "test", "confidence": 0.8, "findings": [], "reasoning": ["test"]}`)
-		synapse := Analyze[TestData]("test", provider,
+		synapse, err := Analyze[TestData]("test", provider,
 			WithRetry(3),
 			WithBackoff(2, 10*time.Millisecond))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		response, err := synapse.FireWithDetails(ctx, TestData{Value: 1, Name: "test"})
+		response, err := synapse.FireWithDetails(ctx, NewSession(), TestData{Value: 1, Name: "test"})
 		if err != nil {
 			t.Fatalf("FireWithDetails with backoff failed: %v", err)
 		}
@@ -179,10 +215,13 @@ func TestAnalyzeSynapse_FireWithDetails(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"analysis": "test", "confidence": 0.9, "findings": [], "reasoning": ["test"]}`)
-		synapse := Analyze[TestData]("test", provider)
+		synapse, err := Analyze[TestData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		response, err := synapse.FireWithDetails(ctx, TestData{Value: 42, Name: "test"})
+		response, err := synapse.FireWithDetails(ctx, NewSession(), TestData{Value: 42, Name: "test"})
 		if err != nil {
 			t.Fatalf("FireWithDetails failed: %v", err)
 		}
@@ -195,14 +234,17 @@ func TestAnalyzeSynapse_FireWithDetails(t *testing.T) {
 func TestAnalyzeSynapse_FireWithInput(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"analysis": "test analysis", "confidence": 0.9, "findings": [], "reasoning": ["test"]}`)
-		synapse := Analyze[TestData]("test", provider)
+		synapse, err := Analyze[TestData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := AnalyzeInput[TestData]{
 			Data:    TestData{Value: 42, Name: "test"},
 			Context: "test context",
 		}
-		result, err := synapse.FireWithInput(ctx, input)
+		result, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput failed: %v", err)
 		}
@@ -213,15 +255,18 @@ func TestAnalyzeSynapse_FireWithInput(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"analysis": "test", "confidence": 0.9, "findings": [], "reasoning": ["test"]}`)
-		synapse := Analyze[TestData]("test", provider,
+		synapse, err := Analyze[TestData]("test", provider,
 			WithCircuitBreaker(5, 30*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := AnalyzeInput[TestData]{
 			Data:        TestData{Value: 1, Name: "test"},
 			Temperature: 0.3,
 		}
-		result, err := synapse.FireWithInput(ctx, input)
+		result, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput with circuit breaker failed: %v", err)
 		}
@@ -232,14 +277,17 @@ func TestAnalyzeSynapse_FireWithInput(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"analysis": "test", "confidence": 0.9, "findings": [], "reasoning": ["test"]}`)
-		synapse := Analyze[TestData]("test", provider)
+		synapse, err := Analyze[TestData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := AnalyzeInput[TestData]{
 			Data:  TestData{Value: 42, Name: "test"},
 			Focus: "specific aspect",
 		}
-		result, err := synapse.FireWithInput(ctx, input)
+		result, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput with focus failed: %v", err)
 		}
@@ -252,13 +300,16 @@ func TestAnalyzeSynapse_FireWithInput(t *testing.T) {
 func TestAnalyzeSynapse_FireWithInputDetails(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"analysis": "detailed", "confidence": 0.9, "findings": ["f1"], "reasoning": ["r1"]}`)
-		synapse := Analyze[TestData]("test", provider)
+		synapse, err := Analyze[TestData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := AnalyzeInput[TestData]{
 			Data: TestData{Value: 42, Name: "test"},
 		}
-		response, err := synapse.FireWithInputDetails(ctx, input)
+		response, err := synapse.FireWithInputDetails(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInputDetails failed: %v", err)
 		}
@@ -269,14 +320,17 @@ func TestAnalyzeSynapse_FireWithInputDetails(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"analysis": "test", "confidence": 0.8, "findings": [], "reasoning": ["test"]}`)
-		synapse := Analyze[TestData]("test", provider, WithRetry(3))
+		synapse, err := Analyze[TestData]("test", provider, WithRetry(3))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := AnalyzeInput[TestData]{
 			Data:        TestData{Value: 1, Name: "test"},
 			Temperature: 0.7,
 		}
-		response, err := synapse.FireWithInputDetails(ctx, input)
+		response, err := synapse.FireWithInputDetails(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInputDetails with retry failed: %v", err)
 		}
@@ -287,7 +341,10 @@ func TestAnalyzeSynapse_FireWithInputDetails(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"analysis": "test", "confidence": 0.9, "findings": [], "reasoning": ["test"]}`)
-		synapse := Analyze[TestData]("test", provider)
+		synapse, err := Analyze[TestData]("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := AnalyzeInput[TestData]{
@@ -295,7 +352,7 @@ func TestAnalyzeSynapse_FireWithInputDetails(t *testing.T) {
 			Context: "test context",
 			Focus:   "specific focus",
 		}
-		response, err := synapse.FireWithInputDetails(ctx, input)
+		response, err := synapse.FireWithInputDetails(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInputDetails with context and focus failed: %v", err)
 		}
@@ -374,9 +431,13 @@ func TestAnalyzeSynapse_mergeInputs(t *testing.T) {
 
 func TestAnalyzeSynapse_buildPrompt(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
+		schema, err := generateJSONSchema[AnalyzeResponse]()
+		if err != nil {
+			t.Fatalf("failed to generate schema: %v", err)
+		}
 		synapse := &AnalyzeSynapse[TestData]{
 			what:   "data quality",
-			schema: generateJSONSchema[AnalyzeResponse](),
+			schema: schema,
 		}
 
 		input := AnalyzeInput[TestData]{
@@ -396,9 +457,13 @@ func TestAnalyzeSynapse_buildPrompt(t *testing.T) {
 	})
 
 	t.Run("reliability", func(t *testing.T) {
+		schema, err := generateJSONSchema[AnalyzeResponse]()
+		if err != nil {
+			t.Fatalf("failed to generate schema: %v", err)
+		}
 		synapse := &AnalyzeSynapse[TestData]{
 			what:   "test",
-			schema: generateJSONSchema[AnalyzeResponse](),
+			schema: schema,
 		}
 
 		input := AnalyzeInput[TestData]{
@@ -417,9 +482,13 @@ func TestAnalyzeSynapse_buildPrompt(t *testing.T) {
 	})
 
 	t.Run("chaining", func(t *testing.T) {
+		schema, err := generateJSONSchema[AnalyzeResponse]()
+		if err != nil {
+			t.Fatalf("failed to generate schema: %v", err)
+		}
 		synapse := &AnalyzeSynapse[TestData]{
 			what:   "test",
-			schema: generateJSONSchema[AnalyzeResponse](),
+			schema: schema,
 		}
 
 		input := AnalyzeInput[TestData]{

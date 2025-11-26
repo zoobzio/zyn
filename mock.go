@@ -31,13 +31,27 @@ func NewMockProviderWithName(name string) *MockProvider {
 }
 
 // Call simulates an LLM call with deterministic responses.
-func (m *MockProvider) Call(_ context.Context, prompt string, _ float32) (string, error) {
+// For testing, it uses the last message content as the prompt.
+func (m *MockProvider) Call(_ context.Context, messages []Message, _ float32) (*ProviderResponse, error) {
 	if !m.available {
-		return "", fmt.Errorf("provider %s is unavailable", m.name)
+		return nil, fmt.Errorf("provider %s is unavailable", m.name)
+	}
+
+	// Extract last message (the new user message) for generating response
+	var prompt string
+	if len(messages) > 0 {
+		prompt = messages[len(messages)-1].Content
 	}
 
 	// Generate response based on prompt patterns
-	return m.generateResponse(prompt), nil
+	return &ProviderResponse{
+		Content: m.generateResponse(prompt),
+		Usage: TokenUsage{
+			Prompt:     100, // Mock token counts
+			Completion: 50,
+			Total:      150,
+		},
+	}, nil
 }
 
 // Name returns the provider identifier.
@@ -298,8 +312,15 @@ type mockProviderFixed struct {
 	response string
 }
 
-func (m *mockProviderFixed) Call(_ context.Context, _ string, _ float32) (string, error) {
-	return m.response, nil
+func (m *mockProviderFixed) Call(_ context.Context, _ []Message, _ float32) (*ProviderResponse, error) {
+	return &ProviderResponse{
+		Content: m.response,
+		Usage: TokenUsage{
+			Prompt:     100,
+			Completion: 50,
+			Total:      150,
+		},
+	}, nil
 }
 
 func (*mockProviderFixed) Name() string {
@@ -311,8 +332,24 @@ type mockProviderCallback struct {
 	callback func(string, float32) (string, error)
 }
 
-func (m *mockProviderCallback) Call(_ context.Context, prompt string, temperature float32) (string, error) {
-	return m.callback(prompt, temperature)
+func (m *mockProviderCallback) Call(_ context.Context, messages []Message, temperature float32) (*ProviderResponse, error) {
+	// Extract last message for callback
+	var prompt string
+	if len(messages) > 0 {
+		prompt = messages[len(messages)-1].Content
+	}
+	content, err := m.callback(prompt, temperature)
+	if err != nil {
+		return nil, err
+	}
+	return &ProviderResponse{
+		Content: content,
+		Usage: TokenUsage{
+			Prompt:     100,
+			Completion: 50,
+			Total:      150,
+		},
+	}, nil
 }
 
 func (*mockProviderCallback) Name() string {
@@ -324,8 +361,8 @@ type mockProviderError struct {
 	errMsg string
 }
 
-func (m *mockProviderError) Call(_ context.Context, _ string, _ float32) (string, error) {
-	return "", fmt.Errorf("%s", m.errMsg)
+func (m *mockProviderError) Call(_ context.Context, _ []Message, _ float32) (*ProviderResponse, error) {
+	return nil, fmt.Errorf("%s", m.errMsg)
 }
 
 func (*mockProviderError) Name() string {

@@ -47,37 +47,29 @@ type ClassificationSynapse struct {
 }
 
 // NewClassification creates a new classification synapse bound to a provider.
-func NewClassification(question string, categories []string, provider Provider, opts ...Option) *ClassificationSynapse {
+// Returns an error if the JSON schema cannot be generated.
+func NewClassification(question string, categories []string, provider Provider, opts ...Option) (*ClassificationSynapse, error) {
 	// Generate schema once at construction
-	schema := generateJSONSchema[ClassificationResponse]()
-
-	// Create terminal processor that calls the provider
-	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
-		// Render prompt to string for provider
-		promptStr := req.Prompt.Render()
-		response, err := provider.Call(ctx, promptStr, req.Temperature)
-		if err != nil {
-			return req, err
-		}
-		req.Response = response
-		return req, nil
-	})
+	schema, err := generateJSONSchema[ClassificationResponse]()
+	if err != nil {
+		return nil, fmt.Errorf("classification synapse: %w", err)
+	}
 
 	// Apply options to build pipeline
-	var pipeline pipz.Chainable[*SynapseRequest] = terminal
+	var pipeline pipz.Chainable[*SynapseRequest] = NewTerminal(provider)
 	for _, opt := range opts {
 		pipeline = opt(pipeline)
 	}
 
-	// Create service with final pipeline
-	svc := NewService[ClassificationResponse](pipeline, "classification", provider)
+	// Create service with final pipeline and default temperature
+	svc := NewService[ClassificationResponse](pipeline, "classification", provider, DefaultTemperatureCreative)
 
 	return &ClassificationSynapse{
 		question:   question,
 		categories: categories,
 		schema:     schema,
 		service:    svc,
-	}
+	}, nil
 }
 
 // GetPipeline returns the internal pipeline for composition.
@@ -93,8 +85,8 @@ func (c *ClassificationSynapse) WithDefaults(defaults ClassificationInput) *Clas
 
 // Fire executes the synapse against a simple string input.
 // Returns only the primary category.
-func (c *ClassificationSynapse) Fire(ctx context.Context, input string) (string, error) {
-	response, err := c.FireWithDetails(ctx, input)
+func (c *ClassificationSynapse) Fire(ctx context.Context, session *Session, input string) (string, error) {
+	response, err := c.FireWithDetails(ctx, session, input)
 	if err != nil {
 		return "", err
 	}
@@ -102,30 +94,21 @@ func (c *ClassificationSynapse) Fire(ctx context.Context, input string) (string,
 }
 
 // FireWithDetails executes the synapse and returns the full response.
-func (c *ClassificationSynapse) FireWithDetails(ctx context.Context, input string) (ClassificationResponse, error) {
+func (c *ClassificationSynapse) FireWithDetails(ctx context.Context, session *Session, input string) (ClassificationResponse, error) {
 	classInput := ClassificationInput{Subject: input}
-	return c.FireWithInput(ctx, classInput)
+	return c.FireWithInput(ctx, session, classInput)
 }
 
 // FireWithInput executes the synapse with rich input structure.
-func (c *ClassificationSynapse) FireWithInput(ctx context.Context, input ClassificationInput) (ClassificationResponse, error) {
+func (c *ClassificationSynapse) FireWithInput(ctx context.Context, session *Session, input ClassificationInput) (ClassificationResponse, error) {
 	// Merge defaults with user input
 	merged := c.mergeInputs(input)
 
 	// Build prompt
 	prompt := c.buildPrompt(merged)
 
-	// Determine temperature
-	temperature := merged.Temperature
-	if temperature == 0 && c.defaults.Temperature != 0 {
-		temperature = c.defaults.Temperature
-	}
-	if temperature == 0 {
-		temperature = DefaultTemperatureCreative
-	}
-
-	// Execute through service (validation happens in Service.Execute)
-	return c.service.Execute(ctx, prompt, temperature)
+	// Execute through service with session (service handles temperature fallback)
+	return c.service.Execute(ctx, session, prompt, merged.Temperature)
 }
 
 // mergeInputs combines defaults with user input.
@@ -146,7 +129,7 @@ func (c *ClassificationSynapse) mergeInputs(input ClassificationInput) Classific
 			merged.Examples[cat] = append(merged.Examples[cat], exs...)
 		}
 	}
-	if input.Temperature != 0 {
+	if input.Temperature != 0 && input.Temperature != TemperatureUnset {
 		merged.Temperature = input.Temperature
 	}
 
@@ -177,15 +160,16 @@ func (c *ClassificationSynapse) buildPrompt(input ClassificationInput) *Prompt {
 
 // Classification creates a new classification synapse bound to a provider.
 // The synapse categorizes inputs into one of the provided categories.
+// Returns an error if the JSON schema cannot be generated.
 //
 // Example:
 //
-//	synapse := Classification("What type of error?",
+//	synapse, err := Classification("What type of error?",
 //	    []string{"network", "database", "auth", "validation"},
 //	    provider,
 //	    WithTimeout(10*time.Second),
 //	)
 //	category, err := synapse.Fire(ctx, "Connection refused on port 5432")
-func Classification(question string, categories []string, provider Provider, opts ...Option) *ClassificationSynapse {
+func Classification(question string, categories []string, provider Provider, opts ...Option) (*ClassificationSynapse, error) {
 	return NewClassification(question, categories, provider, opts...)
 }

@@ -26,10 +26,13 @@ func main() {
 	})
 
 	// Create classification synapse
-	synapse := zyn.Classification("what category", []string{"technology", "sports", "politics", "entertainment"}, provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Classification("what category", []string{"technology", "sports", "politics", "entertainment"}, provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Execute classification
-	response, err := synapse.FireWithDetails(ctx, "The new iPhone 15 was announced today with groundbreaking features.")
+	response, err := synapse.FireWithDetails(ctx, zyn.NewSession(), "The new iPhone 15 was announced today with groundbreaking features.")
 	if err != nil {
 		log.Fatalf("Classification failed: %v", err)
 	}

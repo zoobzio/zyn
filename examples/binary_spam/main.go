@@ -26,10 +26,13 @@ func main() {
 	})
 
 	// Create binary decision synapse
-	synapse := zyn.Binary("is this spam or promotional content?", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Binary("is this spam or promotional content?", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Check for spam
-	response, err := synapse.FireWithInput(ctx, zyn.BinaryInput{
+	response, err := synapse.FireWithInput(ctx, zyn.NewSession(), zyn.BinaryInput{
 		Subject: "Congratulations! You've won $1,000,000! Click here to claim your prize now!!!",
 		Context: "Email filtering system",
 	})

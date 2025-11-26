@@ -47,10 +47,13 @@ func main() {
 	})
 
 	// Create analyze synapse
-	synapse := zyn.Analyze[SystemConfig]("configuration for production readiness", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Analyze[SystemConfig]("configuration for production readiness", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Analyze configuration
-	response, err := synapse.FireWithInputDetails(ctx, zyn.AnalyzeInput[SystemConfig]{
+	response, err := synapse.FireWithInputDetails(ctx, zyn.NewSession(), zyn.AnalyzeInput[SystemConfig]{
 		Data: SystemConfig{
 			Database: DatabaseConfig{
 				MaxConnections: 10,

@@ -26,10 +26,13 @@ func main() {
 	})
 
 	// Create classification synapse
-	synapse := zyn.Classification("priority level", []string{"urgent", "normal", "low-priority", "spam"}, provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Classification("priority level", []string{"urgent", "normal", "low-priority", "spam"}, provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Classify email
-	response, err := synapse.FireWithInput(ctx, zyn.ClassificationInput{
+	response, err := synapse.FireWithInput(ctx, zyn.NewSession(), zyn.ClassificationInput{
 		Subject: "URGENT: Server down in production. Customers cannot access the application.",
 		Context: "Support ticket triage",
 	})

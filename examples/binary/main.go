@@ -26,10 +26,13 @@ func main() {
 	})
 
 	// Create binary synapse
-	synapse := zyn.Binary("Is this a question?", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Binary("Is this a question?", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Execute binary decision
-	response, err := synapse.FireWithDetails(ctx, "What time is it?")
+	response, err := synapse.FireWithDetails(ctx, zyn.NewSession(), "What time is it?")
 	if err != nil {
 		log.Fatalf("Binary decision failed: %v", err)
 	}

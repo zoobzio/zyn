@@ -45,36 +45,28 @@ type BinarySynapse struct {
 
 // NewBinary creates a new binary synapse bound to a provider.
 // The synapse is immediately usable and can be enhanced with options.
-func NewBinary(question string, provider Provider, opts ...Option) *BinarySynapse {
+// Returns an error if the JSON schema cannot be generated.
+func NewBinary(question string, provider Provider, opts ...Option) (*BinarySynapse, error) {
 	// Generate schema once at construction
-	schema := generateJSONSchema[BinaryResponse]()
-
-	// Create terminal processor that calls the provider
-	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
-		// Render prompt to string for provider
-		promptStr := req.Prompt.Render()
-		response, err := provider.Call(ctx, promptStr, req.Temperature)
-		if err != nil {
-			return req, err
-		}
-		req.Response = response
-		return req, nil
-	})
+	schema, err := generateJSONSchema[BinaryResponse]()
+	if err != nil {
+		return nil, fmt.Errorf("binary synapse: %w", err)
+	}
 
 	// Apply options to build pipeline
-	var pipeline pipz.Chainable[*SynapseRequest] = terminal
+	var pipeline pipz.Chainable[*SynapseRequest] = NewTerminal(provider)
 	for _, opt := range opts {
 		pipeline = opt(pipeline)
 	}
 
-	// Create service with final pipeline
-	svc := NewService[BinaryResponse](pipeline, "binary", provider)
+	// Create service with final pipeline and default temperature
+	svc := NewService[BinaryResponse](pipeline, "binary", provider, DefaultTemperatureDeterministic)
 
 	return &BinarySynapse{
 		question: question,
 		schema:   schema,
 		service:  svc,
-	}
+	}, nil
 }
 
 // GetPipeline returns the internal pipeline for composition.
@@ -92,8 +84,8 @@ func (b *BinarySynapse) WithDefaults(defaults BinaryInput) *BinarySynapse {
 
 // Fire executes the synapse against a simple string input.
 // Returns only the boolean decision.
-func (b *BinarySynapse) Fire(ctx context.Context, input string) (bool, error) {
-	response, err := b.FireWithDetails(ctx, input)
+func (b *BinarySynapse) Fire(ctx context.Context, session *Session, input string) (bool, error) {
+	response, err := b.FireWithDetails(ctx, session, input)
 	if err != nil {
 		return false, err
 	}
@@ -101,30 +93,21 @@ func (b *BinarySynapse) Fire(ctx context.Context, input string) (bool, error) {
 }
 
 // FireWithDetails executes the synapse and returns the full response.
-func (b *BinarySynapse) FireWithDetails(ctx context.Context, input string) (BinaryResponse, error) {
+func (b *BinarySynapse) FireWithDetails(ctx context.Context, session *Session, input string) (BinaryResponse, error) {
 	binInput := BinaryInput{Subject: input}
-	return b.FireWithInput(ctx, binInput)
+	return b.FireWithInput(ctx, session, binInput)
 }
 
 // FireWithInput executes the synapse with rich input structure.
-func (b *BinarySynapse) FireWithInput(ctx context.Context, input BinaryInput) (BinaryResponse, error) {
+func (b *BinarySynapse) FireWithInput(ctx context.Context, session *Session, input BinaryInput) (BinaryResponse, error) {
 	// Merge defaults with user input
 	merged := b.mergeInputs(input)
 
 	// Build prompt
 	prompt := b.buildPrompt(merged)
 
-	// Determine temperature
-	temperature := merged.Temperature
-	if temperature == 0 && b.defaults.Temperature != 0 {
-		temperature = b.defaults.Temperature
-	}
-	if temperature == 0 {
-		temperature = DefaultTemperatureDeterministic
-	}
-
-	// Execute through service
-	return b.service.Execute(ctx, prompt, temperature)
+	// Execute through service with session (service handles temperature fallback)
+	return b.service.Execute(ctx, session, prompt, merged.Temperature)
 }
 
 // mergeInputs combines defaults with user input.
@@ -146,7 +129,7 @@ func (b *BinarySynapse) mergeInputs(input BinaryInput) BinaryInput {
 	if len(input.Constraints) > 0 {
 		merged.Constraints = append(merged.Constraints, input.Constraints...)
 	}
-	if input.Temperature != 0 {
+	if input.Temperature != 0 && input.Temperature != TemperatureUnset {
 		merged.Temperature = input.Temperature
 	}
 
@@ -189,14 +172,15 @@ func (b *BinarySynapse) buildPrompt(input BinaryInput) *Prompt {
 
 // Binary creates a new binary synapse bound to a provider.
 // The synapse is immediately usable and can be enhanced with options.
+// Returns an error if the JSON schema cannot be generated.
 //
 // Example:
 //
-//	synapse := Binary("Is this valid?", provider,
+//	synapse, err := Binary("Is this valid?", provider,
 //	    WithRetry(3),
 //	    WithTimeout(10*time.Second),
 //	)
 //	result, err := synapse.Fire(ctx, "test@example.com")
-func Binary(question string, provider Provider, opts ...Option) *BinarySynapse {
+func Binary(question string, provider Provider, opts ...Option) (*BinarySynapse, error) {
 	return NewBinary(question, provider, opts...)
 }

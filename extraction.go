@@ -28,36 +28,28 @@ type ExtractionSynapse[T Validator] struct {
 
 // NewExtraction creates a new extraction synapse bound to a provider.
 // The type parameter T defines the structure to extract and must implement Validator.
-func NewExtraction[T Validator](what string, provider Provider, opts ...Option) *ExtractionSynapse[T] {
+// Returns an error if the JSON schema cannot be generated.
+func NewExtraction[T Validator](what string, provider Provider, opts ...Option) (*ExtractionSynapse[T], error) {
 	// Generate schema once at construction
-	schema := generateJSONSchema[T]()
-
-	// Create terminal processor that calls the provider
-	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
-		// Render prompt to string for provider
-		promptStr := req.Prompt.Render()
-		response, err := provider.Call(ctx, promptStr, req.Temperature)
-		if err != nil {
-			return req, err
-		}
-		req.Response = response
-		return req, nil
-	})
+	schema, err := generateJSONSchema[T]()
+	if err != nil {
+		return nil, fmt.Errorf("extraction synapse: %w", err)
+	}
 
 	// Apply options to build pipeline
-	var pipeline pipz.Chainable[*SynapseRequest] = terminal
+	var pipeline pipz.Chainable[*SynapseRequest] = NewTerminal(provider)
 	for _, opt := range opts {
 		pipeline = opt(pipeline)
 	}
 
-	// Create service with final pipeline
-	svc := NewService[T](pipeline, "extraction", provider)
+	// Create service with final pipeline and default temperature
+	svc := NewService[T](pipeline, "extraction", provider, DefaultTemperatureDeterministic)
 
 	return &ExtractionSynapse[T]{
 		what:    what,
 		schema:  schema,
 		service: svc,
-	}
+	}, nil
 }
 
 // GetPipeline returns the internal pipeline for composition.
@@ -72,30 +64,21 @@ func (e *ExtractionSynapse[T]) WithDefaults(defaults ExtractionInput) *Extractio
 }
 
 // Fire executes the extraction against text.
-func (e *ExtractionSynapse[T]) Fire(ctx context.Context, text string) (T, error) {
+func (e *ExtractionSynapse[T]) Fire(ctx context.Context, session *Session, text string) (T, error) {
 	input := ExtractionInput{Text: text}
-	return e.FireWithInput(ctx, input)
+	return e.FireWithInput(ctx, session, input)
 }
 
 // FireWithInput executes the extraction with rich input structure.
-func (e *ExtractionSynapse[T]) FireWithInput(ctx context.Context, input ExtractionInput) (T, error) {
+func (e *ExtractionSynapse[T]) FireWithInput(ctx context.Context, session *Session, input ExtractionInput) (T, error) {
 	// Merge defaults with user input
 	merged := e.mergeInputs(input)
 
 	// Build prompt
 	prompt := e.buildPrompt(merged)
 
-	// Determine temperature
-	temperature := merged.Temperature
-	if temperature == 0 && e.defaults.Temperature != 0 {
-		temperature = e.defaults.Temperature
-	}
-	if temperature == 0 {
-		temperature = DefaultTemperatureDeterministic
-	}
-
-	// Execute through service - it handles JSON unmarshaling to T
-	return e.service.Execute(ctx, prompt, temperature)
+	// Execute through service with session (service handles temperature fallback)
+	return e.service.Execute(ctx, session, prompt, merged.Temperature)
 }
 
 // mergeInputs combines defaults with user input.
@@ -111,7 +94,7 @@ func (e *ExtractionSynapse[T]) mergeInputs(input ExtractionInput) ExtractionInpu
 	if input.Examples != "" {
 		merged.Examples = input.Examples
 	}
-	if input.Temperature != 0 {
+	if input.Temperature != 0 && input.Temperature != TemperatureUnset {
 		merged.Temperature = input.Temperature
 	}
 
@@ -155,6 +138,7 @@ func (e *ExtractionSynapse[T]) buildPrompt(input ExtractionInput) *Prompt {
 
 // Extract creates a new extraction synapse bound to a provider.
 // The type parameter T defines the structure to extract and must implement Validator.
+// Returns an error if the JSON schema cannot be generated.
 //
 // Example:
 //
@@ -170,8 +154,8 @@ func (e *ExtractionSynapse[T]) buildPrompt(input ExtractionInput) *Prompt {
 //	    return nil
 //	}
 //
-//	extractor := Extract[Contact]("contact information", provider)
+//	extractor, err := Extract[Contact]("contact information", provider)
 //	contact, err := extractor.Fire(ctx, "John Doe at john@example.com")
-func Extract[T Validator](what string, provider Provider, opts ...Option) *ExtractionSynapse[T] {
+func Extract[T Validator](what string, provider Provider, opts ...Option) (*ExtractionSynapse[T], error) {
 	return NewExtraction[T](what, provider, opts...)
 }

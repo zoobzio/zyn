@@ -58,8 +58,9 @@ func (p *Provider) Name() string {
 	return p.name
 }
 
-// Call sends a prompt to OpenAI and returns the response.
-func (p *Provider) Call(ctx context.Context, prompt string, temperature float32) (string, error) {
+// Call sends messages to OpenAI and returns the response with usage stats.
+// OpenAI automatically handles prompt caching for prompts >1024 tokens.
+func (p *Provider) Call(ctx context.Context, messages []zyn.Message, temperature float32) (*zyn.ProviderResponse, error) {
 	startTime := time.Now()
 
 	// Emit provider.call.started hook
@@ -68,15 +69,19 @@ func (p *Provider) Call(ctx context.Context, prompt string, temperature float32)
 		zyn.ModelKey.Field(p.model),
 	)
 
+	// Convert zyn.Message to openai message format
+	apiMessages := make([]message, len(messages))
+	for i, msg := range messages {
+		apiMessages[i] = message{
+			Role:    msg.Role,
+			Content: msg.Content,
+		}
+	}
+
 	// Build request body with JSON mode enabled
 	requestBody := chatCompletionRequest{
-		Model: p.model,
-		Messages: []message{
-			{
-				Role:    "user",
-				Content: prompt,
-			},
-		},
+		Model:       p.model,
+		Messages:    apiMessages,
 		Temperature: temperature,
 		ResponseFormat: &responseFormat{
 			Type: "json_object",
@@ -85,13 +90,13 @@ func (p *Provider) Call(ctx context.Context, prompt string, temperature float32)
 
 	jsonBody, err := json.Marshal(requestBody)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal request: %w", err)
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
 	// Create HTTP request
 	req, err := http.NewRequestWithContext(ctx, "POST", p.baseURL+"/chat/completions", bytes.NewReader(jsonBody))
 	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -100,14 +105,14 @@ func (p *Provider) Call(ctx context.Context, prompt string, temperature float32)
 	// Make the request
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("request failed: %w", err)
+		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("failed to read response: %w", err)
+		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
 	// Handle errors
@@ -136,24 +141,24 @@ func (p *Provider) Call(ctx context.Context, prompt string, temperature float32)
 
 			// Check for rate limit
 			if resp.StatusCode == http.StatusTooManyRequests {
-				return "", fmt.Errorf("rate limit exceeded: %s", errorResp.Error.Message)
+				return nil, fmt.Errorf("rate limit exceeded: %s", errorResp.Error.Message)
 			}
-			return "", fmt.Errorf("openai error (%d): %s", resp.StatusCode, errorResp.Error.Message)
+			return nil, fmt.Errorf("openai error (%d): %s", resp.StatusCode, errorResp.Error.Message)
 		}
 
 		fields = append(fields, zyn.ErrorKey.Field(fmt.Sprintf("status %d", resp.StatusCode)))
 		capitan.Error(ctx, zyn.ProviderCallFailed, fields...)
-		return "", fmt.Errorf("openai error: status %d", resp.StatusCode)
+		return nil, fmt.Errorf("openai error: status %d", resp.StatusCode)
 	}
 
 	// Parse successful response
 	var completionResp chatCompletionResponse
 	if err := json.Unmarshal(body, &completionResp); err != nil {
-		return "", fmt.Errorf("failed to parse response: %w", err)
+		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	if len(completionResp.Choices) == 0 {
-		return "", fmt.Errorf("no response choices returned")
+		return nil, fmt.Errorf("no response choices returned")
 	}
 
 	// Calculate duration
@@ -178,7 +183,14 @@ func (p *Provider) Call(ctx context.Context, prompt string, temperature float32)
 
 	capitan.Info(ctx, zyn.ProviderCallCompleted, fields...)
 
-	return completionResp.Choices[0].Message.Content, nil
+	return &zyn.ProviderResponse{
+		Content: completionResp.Choices[0].Message.Content,
+		Usage: zyn.TokenUsage{
+			Prompt:     completionResp.Usage.PromptTokens,
+			Completion: completionResp.Usage.CompletionTokens,
+			Total:      completionResp.Usage.TotalTokens,
+		},
+	}, nil
 }
 
 // Request/Response types for OpenAI API

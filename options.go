@@ -1,8 +1,6 @@
 package zyn
 
 import (
-	"context"
-	"fmt"
 	"time"
 
 	"github.com/zoobzio/pipz"
@@ -71,33 +69,5 @@ type ServiceProvider interface {
 func WithFallback(fallback ServiceProvider) Option {
 	return func(pipeline pipz.Chainable[*SynapseRequest]) pipz.Chainable[*SynapseRequest] {
 		return pipz.NewFallback("with-fallback", pipeline, fallback.GetPipeline())
-	}
-}
-
-// WithDebug adds debug logging that prints the prompt and raw response.
-// Useful for troubleshooting and understanding what the LLM sees/returns.
-func WithDebug() Option {
-	return func(pipeline pipz.Chainable[*SynapseRequest]) pipz.Chainable[*SynapseRequest] {
-		debugger := pipz.Apply("debug", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
-			// Print prompt before calling LLM
-			fmt.Println("\n=== DEBUG: Prompt ===")
-			fmt.Println(req.Prompt.Render())
-			fmt.Println("=====================")
-
-			// Call the actual pipeline
-			processed, err := pipeline.Process(ctx, req)
-			if err != nil {
-				fmt.Printf("\n=== DEBUG: Error ===\n%v\n==================\n\n", err)
-				return processed, err
-			}
-
-			// Print raw response after LLM call
-			fmt.Println("\n=== DEBUG: Raw Response ===")
-			fmt.Println(processed.Response)
-			fmt.Println("===========================")
-
-			return processed, nil
-		})
-		return debugger
 	}
 }

@@ -35,6 +35,7 @@ import (
     "context"
     "fmt"
     "os"
+    "time"
 
     "github.com/zoobzio/zyn"
     "github.com/zoobzio/zyn/providers/openai"
@@ -47,17 +48,23 @@ func main() {
     })
 
     // Create synapse with reliability features
-    classifier := zyn.Classification(
+    classifier, err := zyn.Classification(
         "What type of email is this?",
         []string{"spam", "urgent", "newsletter", "personal"},
         provider,
         zyn.WithRetry(3),
         zyn.WithTimeout(10*time.Second),
     )
+    if err != nil {
+        panic(err)
+    }
+
+    // Create a session for conversation context
+    session := zyn.NewSession()
 
     // Use it
     ctx := context.Background()
-    category, err := classifier.Fire(ctx, "URGENT: Your account will be suspended!")
+    category, err := classifier.Fire(ctx, session, "URGENT: Your account will be suspended!")
     if err != nil {
         panic(err)
     }
@@ -89,16 +96,23 @@ zyn provides 8 synapse types covering all LLM interaction patterns:
 ### Binary Decision
 
 ```go
-validator := zyn.Binary("Is this a valid email address?", provider)
-isValid, err := validator.Fire(ctx, "user@example.com")
+session := zyn.NewSession()
+validator, err := zyn.Binary("Is this a valid email address?", provider)
+if err != nil {
+    panic(err)
+}
+isValid, err := validator.Fire(ctx, session, "user@example.com")
 // Returns: true
 ```
 
 ### Classification with Examples
 
 ```go
-classifier := zyn.Classification("Classify sentiment",
+classifier, err := zyn.Classification("Classify sentiment",
     []string{"positive", "negative", "neutral"}, provider)
+if err != nil {
+    panic(err)
+}
 
 input := zyn.ClassificationInput{
     Subject: "I love this product!",
@@ -108,7 +122,8 @@ input := zyn.ClassificationInput{
     },
 }
 
-result, err := classifier.FireWithInput(ctx, input)
+session := zyn.NewSession()
+result, err := classifier.FireWithInput(ctx, session, input)
 // Returns: ClassificationResponse{Primary: "positive", Confidence: 0.95, ...}
 ```
 
@@ -130,8 +145,12 @@ func (c Contact) Validate() error {
     return nil
 }
 
-extractor := zyn.Extract[Contact]("contact information", provider)
-contact, err := extractor.Fire(ctx, "John Doe at john@example.com or (555) 123-4567")
+session := zyn.NewSession()
+extractor, err := zyn.Extract[Contact]("contact information", provider)
+if err != nil {
+    panic(err)
+}
+contact, err := extractor.Fire(ctx, session, "John Doe at john@example.com or (555) 123-4567")
 // Returns: Contact{Name: "John Doe", Email: "john@example.com", Phone: "(555) 123-4567"}
 ```
 
@@ -148,11 +167,12 @@ This ensures LLM responses are validated before being returned. The framework au
 ### Text Transformation
 
 ```go
-summarizer := zyn.Transform("summarize into key points", provider)
-summary, err := summarizer.Fire(ctx, longArticle)
+session := zyn.NewSession()
+summarizer, _ := zyn.Transform("summarize into key points", provider)
+summary, err := summarizer.Fire(ctx, session, longArticle)
 
-translator := zyn.Transform("translate to Spanish", provider)
-spanish, err := translator.Fire(ctx, "Hello, how are you?")
+translator, _ := zyn.Transform("translate to Spanish", provider)
+spanish, err := translator.Fire(ctx, session, "Hello, how are you?")
 ```
 
 ### Data Analysis
@@ -164,8 +184,9 @@ type ServerMetrics struct {
     Errors int     `json:"error_count"`
 }
 
-analyzer := zyn.Analyze[ServerMetrics]("performance analysis", provider)
-analysis, err := analyzer.Fire(ctx, metrics)
+session := zyn.NewSession()
+analyzer, _ := zyn.Analyze[ServerMetrics]("performance analysis", provider)
+analysis, err := analyzer.Fire(ctx, session, metrics)
 // Returns: "CPU usage is high at 85%. Consider scaling..."
 ```
 
@@ -192,9 +213,155 @@ func (u UserV2) Validate() error {
     return nil
 }
 
-converter := zyn.Convert[UserV1, UserV2]("migrate to v2 schema", provider)
-v2User, err := converter.Fire(ctx, v1User)
+session := zyn.NewSession()
+converter, _ := zyn.Convert[UserV1, UserV2]("migrate to v2 schema", provider)
+v2User, err := converter.Fire(ctx, session, v1User)
 ```
+
+## Sessions
+
+Sessions enable conversation context across multiple synapse calls, allowing synapses to access previous interactions. This is essential for building complex LLM-powered workflows where later steps depend on earlier context.
+
+### Basic Usage
+
+```go
+// Create a session - lightweight wrapper around message history
+session := zyn.NewSession()
+
+// All Fire() methods require a session
+classifier, _ := zyn.Classification("sentiment", []string{"positive", "negative"}, provider)
+sentiment, err := classifier.Fire(ctx, session, "I love this!")
+// sentiment = "positive"
+
+// Session now contains the conversation history
+// Next call in same session will have access to previous context
+followup, _ := zyn.Binary("Was the previous message enthusiastic?", provider)
+enthusiastic, err := followup.Fire(ctx, session, "Check the sentiment")
+// enthusiastic = true (LLM sees previous "I love this!" message)
+```
+
+### Multi-Synapse Workflows
+
+Sessions are designed for chaining synapses in complex workflows where context matters:
+
+```go
+session := zyn.NewSession()
+
+// Extract customer info
+type Customer struct {
+    Name  string `json:"name"`
+    Issue string `json:"issue"`
+}
+func (c Customer) Validate() error {
+    if c.Name == "" { return fmt.Errorf("name required") }
+    return nil
+}
+
+extractor, _ := zyn.Extract[Customer]("customer details", provider)
+customer, _ := extractor.Fire(ctx, session, "Hi, I'm John and my order hasn't arrived")
+
+// Classify urgency (with context from extraction)
+urgency, _ := zyn.Classification("urgency level", []string{"low", "medium", "high"}, provider)
+level, _ := urgency.Fire(ctx, session, customer.Issue)
+
+// Generate response (with full context)
+responder, _ := zyn.Transform("write customer service response", provider)
+response, _ := responder.Fire(ctx, session, fmt.Sprintf("Customer: %s, Urgency: %s", customer.Name, level))
+```
+
+### Session Management
+
+```go
+// Check message history
+messages := session.Messages() // Returns []Message
+count := session.Len()         // Number of messages
+
+// Clear all messages
+session.Clear()
+
+// Remove last N message pairs (useful for context window management)
+err := session.Prune(2) // Removes last 2 user/assistant message pairs
+```
+
+### Token Tracking
+
+Sessions track token usage from provider responses:
+
+```go
+session := zyn.NewSession()
+synapse.Fire(ctx, session, "input")
+
+// Get usage from last successful call
+if usage := session.LastUsage(); usage != nil {
+    fmt.Printf("Tokens: prompt=%d completion=%d total=%d\n",
+        usage.Prompt, usage.Completion, usage.Total)
+}
+```
+
+### Message Manipulation
+
+Sessions expose primitives for custom context management strategies:
+
+```go
+// Access individual messages
+msg, err := session.At(0)           // Get message at index
+err := session.Remove(2)            // Remove message at index
+err := session.Replace(1, newMsg)   // Replace message at index
+err := session.Insert(0, systemMsg) // Insert message at index
+
+// Bulk operations
+session.Truncate(2, 2)              // Keep first 2 and last 2 messages
+session.SetMessages(msgs)           // Replace entire history
+```
+
+These primitives enable building custom context strategies externally:
+- Sliding window (keep last N messages)
+- Summarization (replace old messages with summary)
+- Selective pruning (remove low-value exchanges)
+
+### Heterogeneous Conversations
+
+Sessions support mixing different synapse types - each synapse stays focused on its task while accessing shared context:
+
+```go
+session := zyn.NewSession()
+
+// Different synapse types, same session
+binary, _ := zyn.Binary("question?", provider)
+classifier, _ := zyn.Classification("category", []string{"a", "b"}, provider)
+extractor, _ := zyn.Extract[Data]("extract", provider)
+
+binary.Fire(ctx, session, "input1")
+classifier.Fire(ctx, session, "input2")      // Sees binary's context
+extractor.Fire(ctx, session, "input3")       // Sees both previous contexts
+```
+
+### Prompt Caching Benefits
+
+Sessions leverage provider-side prompt caching for efficiency:
+
+- Full message history is sent with each call
+- Providers cache the history server-side (5min-1hr TTL)
+- Subsequent calls reuse cached context, reducing costs by 60-90%
+- Cached tokens don't count against rate limits (Claude)
+
+No special configuration needed - caching is automatic when using sessions.
+
+### Error Handling
+
+Sessions use transactional updates - messages are only appended after successful provider responses:
+
+```go
+session := zyn.NewSession()
+
+synapse, _ := zyn.Binary("question", provider, zyn.WithRetry(3))
+result, err := synapse.Fire(ctx, session, "input")
+
+// If Fire() fails (even after retries), session is unchanged
+// If Fire() succeeds, session contains both user message and assistant response
+```
+
+This prevents retry attempts from corrupting the session with duplicate messages.
 
 ## Provider
 
@@ -212,7 +379,7 @@ provider := openai.New(openai.Config{
 zyn integrates with [pipz](https://github.com/zoobzio/pipz) for composable reliability patterns:
 
 ```go
-synapse := zyn.Binary("question", provider,
+synapse, _ := zyn.Binary("question", provider,
     // Retry with exponential backoff
     zyn.WithRetry(3),
 
@@ -249,7 +416,7 @@ errorLogger := pipz.Apply("log-errors", func(ctx context.Context, e *pipz.Error[
     return e, nil
 })
 
-synapse := zyn.Binary("question", provider,
+synapse, _ := zyn.Binary("question", provider,
     zyn.WithErrorHandler(errorLogger),
 )
 ```
@@ -367,9 +534,11 @@ func TestMyFunction(t *testing.T) {
         "reasoning": ["Valid email format", "Contains @ symbol"]
     }`)
 
-    validator := zyn.Binary("Is this valid?", mockProvider)
+    validator, err := zyn.Binary("Is this valid?", mockProvider)
+    assert.NoError(t, err)
 
-    result, err := validator.Fire(context.Background(), "test@example.com")
+    session := zyn.NewSession()
+    result, err := validator.Fire(context.Background(), session, "test@example.com")
     assert.NoError(t, err)
     assert.True(t, result)
 }

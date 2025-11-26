@@ -44,39 +44,28 @@ type AnalyzeSynapse[T any] struct {
 }
 
 // Analyze creates a new analysis synapse for structured input.
-func Analyze[T any](what string, provider Provider, opts ...Option) *AnalyzeSynapse[T] {
+// Returns an error if the JSON schema cannot be generated.
+func Analyze[T any](what string, provider Provider, opts ...Option) (*AnalyzeSynapse[T], error) {
 	// Generate schema once at construction
-	schema := generateJSONSchema[AnalyzeResponse]()
-
-	// Create terminal pipeline stage that calls the provider
-	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
-		// Render prompt to string for provider
-		promptStr := req.Prompt.Render()
-		response, err := provider.Call(ctx, promptStr, req.Temperature)
-		if err != nil {
-			return req, err
-		}
-		req.Response = response
-		return req, nil
-	})
+	schema, err := generateJSONSchema[AnalyzeResponse]()
+	if err != nil {
+		return nil, fmt.Errorf("analyze synapse: %w", err)
+	}
 
 	// Apply options to build pipeline
-	var pipeline pipz.Chainable[*SynapseRequest] = terminal
+	var pipeline pipz.Chainable[*SynapseRequest] = NewTerminal(provider)
 	for _, opt := range opts {
 		pipeline = opt(pipeline)
 	}
 
-	// Create service with final pipeline
-	svc := NewService[AnalyzeResponse](pipeline, "analyze", provider)
+	// Create service with final pipeline and default temperature
+	svc := NewService[AnalyzeResponse](pipeline, "analyze", provider, DefaultTemperatureAnalytical)
 
 	return &AnalyzeSynapse[T]{
-		what:   what,
-		schema: schema,
-		defaults: AnalyzeInput[T]{
-			Temperature: DefaultTemperatureAnalytical,
-		},
+		what:    what,
+		schema:  schema,
 		service: svc,
-	}
+	}, nil
 }
 
 // GetPipeline returns the underlying pipeline.
@@ -85,20 +74,20 @@ func (a *AnalyzeSynapse[T]) GetPipeline() pipz.Chainable[*SynapseRequest] {
 }
 
 // Fire performs the analysis with structured input.
-func (a *AnalyzeSynapse[T]) Fire(ctx context.Context, data T) (string, error) {
+func (a *AnalyzeSynapse[T]) Fire(ctx context.Context, session *Session, data T) (string, error) {
 	input := AnalyzeInput[T]{Data: data}
-	return a.FireWithInput(ctx, input)
+	return a.FireWithInput(ctx, session, input)
 }
 
 // FireWithDetails performs the analysis and returns detailed response.
-func (a *AnalyzeSynapse[T]) FireWithDetails(ctx context.Context, data T) (*AnalyzeResponse, error) {
+func (a *AnalyzeSynapse[T]) FireWithDetails(ctx context.Context, session *Session, data T) (*AnalyzeResponse, error) {
 	input := AnalyzeInput[T]{Data: data}
-	return a.FireWithInputDetails(ctx, input)
+	return a.FireWithInputDetails(ctx, session, input)
 }
 
 // FireWithInput performs the analysis with rich input.
-func (a *AnalyzeSynapse[T]) FireWithInput(ctx context.Context, input AnalyzeInput[T]) (string, error) {
-	response, err := a.FireWithInputDetails(ctx, input)
+func (a *AnalyzeSynapse[T]) FireWithInput(ctx context.Context, session *Session, input AnalyzeInput[T]) (string, error) {
+	response, err := a.FireWithInputDetails(ctx, session, input)
 	if err != nil {
 		return "", err
 	}
@@ -106,24 +95,15 @@ func (a *AnalyzeSynapse[T]) FireWithInput(ctx context.Context, input AnalyzeInpu
 }
 
 // FireWithInputDetails performs the analysis and returns full details.
-func (a *AnalyzeSynapse[T]) FireWithInputDetails(ctx context.Context, input AnalyzeInput[T]) (*AnalyzeResponse, error) {
+func (a *AnalyzeSynapse[T]) FireWithInputDetails(ctx context.Context, session *Session, input AnalyzeInput[T]) (*AnalyzeResponse, error) {
 	// Merge defaults with user input
 	merged := a.mergeInputs(input)
 
 	// Build prompt
 	prompt := a.buildPrompt(merged)
 
-	// Determine temperature
-	temperature := merged.Temperature
-	if temperature == 0 && a.defaults.Temperature != 0 {
-		temperature = a.defaults.Temperature
-	}
-	if temperature == 0 {
-		temperature = DefaultTemperatureAnalytical
-	}
-
-	// Execute through service
-	response, err := a.service.Execute(ctx, prompt, temperature)
+	// Execute through service with session (service handles temperature fallback)
+	response, err := a.service.Execute(ctx, session, prompt, merged.Temperature)
 	if err != nil {
 		return nil, fmt.Errorf("analysis failed: %w", err)
 	}
@@ -144,7 +124,7 @@ func (a *AnalyzeSynapse[T]) mergeInputs(input AnalyzeInput[T]) AnalyzeInput[T] {
 	if input.Focus != "" {
 		merged.Focus = input.Focus
 	}
-	if input.Temperature != 0 {
+	if input.Temperature != 0 && input.Temperature != TemperatureUnset {
 		merged.Temperature = input.Temperature
 	}
 

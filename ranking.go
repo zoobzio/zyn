@@ -46,36 +46,28 @@ type RankingSynapse struct {
 }
 
 // NewRanking creates a new ranking synapse bound to a provider.
-func NewRanking(criteria string, provider Provider, opts ...Option) *RankingSynapse {
+// Returns an error if the JSON schema cannot be generated.
+func NewRanking(criteria string, provider Provider, opts ...Option) (*RankingSynapse, error) {
 	// Generate schema once at construction
-	schema := generateJSONSchema[RankingResponse]()
-
-	// Create terminal processor that calls the provider
-	terminal := pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
-		// Render prompt to string for provider
-		promptStr := req.Prompt.Render()
-		response, err := provider.Call(ctx, promptStr, req.Temperature)
-		if err != nil {
-			return req, err
-		}
-		req.Response = response
-		return req, nil
-	})
+	schema, err := generateJSONSchema[RankingResponse]()
+	if err != nil {
+		return nil, fmt.Errorf("ranking synapse: %w", err)
+	}
 
 	// Apply options to build pipeline
-	var pipeline pipz.Chainable[*SynapseRequest] = terminal
+	var pipeline pipz.Chainable[*SynapseRequest] = NewTerminal(provider)
 	for _, opt := range opts {
 		pipeline = opt(pipeline)
 	}
 
-	// Create service with final pipeline
-	svc := NewService[RankingResponse](pipeline, "ranking", provider)
+	// Create service with final pipeline and default temperature
+	svc := NewService[RankingResponse](pipeline, "ranking", provider, DefaultTemperatureAnalytical)
 
 	return &RankingSynapse{
 		criteria: criteria,
 		schema:   schema,
 		service:  svc,
-	}
+	}, nil
 }
 
 // GetPipeline returns the internal pipeline for composition.
@@ -91,8 +83,8 @@ func (r *RankingSynapse) WithDefaults(defaults RankingInput) *RankingSynapse {
 
 // Fire executes the ranking against a list of items.
 // Returns the items in ranked order.
-func (r *RankingSynapse) Fire(ctx context.Context, items []string) ([]string, error) {
-	response, err := r.FireWithDetails(ctx, items)
+func (r *RankingSynapse) Fire(ctx context.Context, session *Session, items []string) ([]string, error) {
+	response, err := r.FireWithDetails(ctx, session, items)
 	if err != nil {
 		return nil, err
 	}
@@ -100,30 +92,21 @@ func (r *RankingSynapse) Fire(ctx context.Context, items []string) ([]string, er
 }
 
 // FireWithDetails executes the ranking and returns the full response.
-func (r *RankingSynapse) FireWithDetails(ctx context.Context, items []string) (RankingResponse, error) {
+func (r *RankingSynapse) FireWithDetails(ctx context.Context, session *Session, items []string) (RankingResponse, error) {
 	rankInput := RankingInput{Items: items}
-	return r.FireWithInput(ctx, rankInput)
+	return r.FireWithInput(ctx, session, rankInput)
 }
 
 // FireWithInput executes the ranking with rich input structure.
-func (r *RankingSynapse) FireWithInput(ctx context.Context, input RankingInput) (RankingResponse, error) {
+func (r *RankingSynapse) FireWithInput(ctx context.Context, session *Session, input RankingInput) (RankingResponse, error) {
 	// Merge defaults with user input
 	merged := r.mergeInputs(input)
 
 	// Build prompt
 	prompt := r.buildPrompt(merged)
 
-	// Determine temperature
-	temperature := merged.Temperature
-	if temperature == 0 && r.defaults.Temperature != 0 {
-		temperature = r.defaults.Temperature
-	}
-	if temperature == 0 {
-		temperature = DefaultTemperatureAnalytical
-	}
-
-	// Execute through service (validation happens in Service.Execute)
-	return r.service.Execute(ctx, prompt, temperature)
+	// Execute through service with session (service handles temperature fallback)
+	return r.service.Execute(ctx, session, prompt, merged.Temperature)
 }
 
 // mergeInputs combines defaults with user input.
@@ -142,7 +125,7 @@ func (r *RankingSynapse) mergeInputs(input RankingInput) RankingInput {
 	if input.TopN > 0 {
 		merged.TopN = input.TopN
 	}
-	if input.Temperature != 0 {
+	if input.Temperature != 0 && input.Temperature != TemperatureUnset {
 		merged.Temperature = input.Temperature
 	}
 
@@ -187,14 +170,15 @@ func (r *RankingSynapse) buildPrompt(input RankingInput) *Prompt {
 
 // Ranking creates a new ranking synapse bound to a provider.
 // The synapse orders items based on the specified criteria.
+// Returns an error if the JSON schema cannot be generated.
 //
 // Example:
 //
-//	synapse := Ranking("urgency and impact",
+//	synapse, err := Ranking("urgency and impact",
 //	    provider,
 //	    WithTimeout(10*time.Second),
 //	)
 //	ordered, err := synapse.Fire(ctx, []string{"Fix typo", "Security patch", "Add feature"})
-func Ranking(criteria string, provider Provider, opts ...Option) *RankingSynapse {
+func Ranking(criteria string, provider Provider, opts ...Option) (*RankingSynapse, error) {
 	return NewRanking(criteria, provider, opts...)
 }

@@ -26,10 +26,13 @@ func main() {
 	})
 
 	// Create ranking synapse
-	synapse := zyn.Ranking("by urgency and business impact", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Ranking("by urgency and business impact", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Rank tasks
-	response, err := synapse.FireWithInput(ctx, zyn.RankingInput{
+	response, err := synapse.FireWithInput(ctx, zyn.NewSession(), zyn.RankingInput{
 		Items: []string{
 			"Fix critical security vulnerability",
 			"Add new feature request",

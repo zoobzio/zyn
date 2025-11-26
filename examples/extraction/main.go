@@ -39,10 +39,13 @@ func main() {
 	})
 
 	// Create extraction synapse
-	synapse := zyn.Extract[TechExtraction]("all mentioned technologies", provider, zyn.WithBackoff(3, 100*time.Millisecond), zyn.WithDebug())
+	synapse, err := zyn.Extract[TechExtraction]("all mentioned technologies", provider, zyn.WithBackoff(3, 100*time.Millisecond))
+	if err != nil {
+		panic(err)
+	}
 
 	// Execute extraction
-	response, err := synapse.Fire(ctx, "We use Python, Go, and Rust for backend development, with React for the frontend.")
+	response, err := synapse.Fire(ctx, zyn.NewSession(), "We use Python, Go, and Rust for backend development, with React for the frontend.")
 	if err != nil {
 		log.Fatalf("Extraction failed: %v", err)
 	}

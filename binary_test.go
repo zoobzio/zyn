@@ -9,7 +9,10 @@ import (
 func TestNewBinary(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewBinary("Is this valid?", provider)
+		synapse, err := NewBinary("Is this valid?", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Expected synapse to be created")
@@ -21,9 +24,12 @@ func TestNewBinary(t *testing.T) {
 
 	t.Run("with_options", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewBinary("Is this valid?", provider,
+		synapse, err := NewBinary("Is this valid?", provider,
 			WithRetry(3),
 			WithTimeout(10*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Expected synapse with options to be created")
@@ -33,10 +39,16 @@ func TestNewBinary(t *testing.T) {
 	t.Run("with_fallback", func(t *testing.T) {
 		primary := NewMockProviderWithName("primary")
 		fallback := NewMockProviderWithName("fallback")
-		fallbackSynapse := NewBinary("Is this valid?", fallback)
+		fallbackSynapse, err := NewBinary("Is this valid?", fallback)
+		if err != nil {
+			t.Fatalf("failed to create fallback synapse: %v", err)
+		}
 
-		synapse := NewBinary("Is this valid?", primary,
+		synapse, err := NewBinary("Is this valid?", primary,
 			WithFallback(fallbackSynapse))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Expected synapse with fallback to be created")
@@ -46,7 +58,10 @@ func TestNewBinary(t *testing.T) {
 
 func TestBinarySynapse_GetPipeline(t *testing.T) {
 	provider := NewMockProvider()
-	synapse := NewBinary("test", provider)
+	synapse, err := NewBinary("test", provider)
+	if err != nil {
+		t.Fatalf("failed to create synapse: %v", err)
+	}
 
 	pipeline := synapse.GetPipeline()
 	if pipeline == nil {
@@ -57,7 +72,10 @@ func TestBinarySynapse_GetPipeline(t *testing.T) {
 func TestBinarySynapse_WithDefaults(t *testing.T) {
 	t.Run("sets_defaults", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := NewBinary("test", provider)
+		synapse, err := NewBinary("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		defaults := BinaryInput{
 			Context:     "default context",
@@ -75,11 +93,14 @@ func TestBinarySynapse_WithDefaults(t *testing.T) {
 
 	t.Run("method_chaining", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"decision": true, "confidence": 0.9, "reasoning": ["test"]}`)
-		synapse := NewBinary("test", provider).
-			WithDefaults(BinaryInput{Context: "default", Temperature: 0.5})
+		synapse, err := NewBinary("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
+		synapse = synapse.WithDefaults(BinaryInput{Context: "default", Temperature: 0.5})
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, "test")
+		result, err := synapse.Fire(ctx, NewSession(), "test")
 		if err != nil {
 			t.Errorf("Fire failed with defaults: %v", err)
 		}
@@ -92,10 +113,13 @@ func TestBinarySynapse_WithDefaults(t *testing.T) {
 func TestBinarySynapse_Fire(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"decision": true, "confidence": 0.9, "reasoning": ["valid"]}`)
-		synapse := NewBinary("Is this valid?", provider)
+		synapse, err := NewBinary("Is this valid?", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, "user@example.com")
+		result, err := synapse.Fire(ctx, NewSession(), "user@example.com")
 		if err != nil {
 			t.Fatalf("Fire failed: %v", err)
 		}
@@ -106,12 +130,15 @@ func TestBinarySynapse_Fire(t *testing.T) {
 
 	t.Run("with_retry", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"decision": false, "confidence": 0.8, "reasoning": ["invalid"]}`)
-		synapse := NewBinary("Is this valid?", provider,
+		synapse, err := NewBinary("Is this valid?", provider,
 			WithRetry(2),
 			WithTimeout(5*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, "invalid")
+		result, err := synapse.Fire(ctx, NewSession(), "invalid")
 		if err != nil {
 			t.Fatalf("Fire with retry failed: %v", err)
 		}
@@ -123,13 +150,19 @@ func TestBinarySynapse_Fire(t *testing.T) {
 	t.Run("with_fallback", func(t *testing.T) {
 		failing := NewMockProviderWithError("primary failed")
 		fallbackProvider := NewMockProviderWithResponse(`{"decision": true, "confidence": 0.8, "reasoning": ["fallback"]}`)
-		fallbackSynapse := NewBinary("Is this valid?", fallbackProvider)
+		fallbackSynapse, err := NewBinary("Is this valid?", fallbackProvider)
+		if err != nil {
+			t.Fatalf("failed to create fallback synapse: %v", err)
+		}
 
-		synapse := NewBinary("Is this valid?", failing,
+		synapse, err := NewBinary("Is this valid?", failing,
 			WithFallback(fallbackSynapse))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		result, err := synapse.Fire(ctx, "test")
+		result, err := synapse.Fire(ctx, NewSession(), "test")
 		if err != nil {
 			t.Fatalf("Fire with fallback failed: %v", err)
 		}
@@ -142,10 +175,13 @@ func TestBinarySynapse_Fire(t *testing.T) {
 func TestBinarySynapse_FireWithDetails(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"decision": true, "confidence": 0.95, "reasoning": ["valid format", "known domain"]}`)
-		synapse := NewBinary("Is this valid?", provider)
+		synapse, err := NewBinary("Is this valid?", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		response, err := synapse.FireWithDetails(ctx, "test@example.com")
+		response, err := synapse.FireWithDetails(ctx, NewSession(), "test@example.com")
 		if err != nil {
 			t.Fatalf("FireWithDetails failed: %v", err)
 		}
@@ -162,12 +198,15 @@ func TestBinarySynapse_FireWithDetails(t *testing.T) {
 
 	t.Run("with_retry", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"decision": false, "confidence": 0.7, "reasoning": ["test"]}`)
-		synapse := NewBinary("Is this valid?", provider,
+		synapse, err := NewBinary("Is this valid?", provider,
 			WithRetry(3),
 			WithBackoff(2, 10*time.Millisecond))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
-		response, err := synapse.FireWithDetails(ctx, "test")
+		response, err := synapse.FireWithDetails(ctx, NewSession(), "test")
 		if err != nil {
 			t.Fatalf("FireWithDetails with backoff failed: %v", err)
 		}
@@ -180,14 +219,17 @@ func TestBinarySynapse_FireWithDetails(t *testing.T) {
 func TestBinarySynapse_FireWithInput(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"decision": true, "confidence": 0.9, "reasoning": ["test"]}`)
-		synapse := NewBinary("Is this valid?", provider)
+		synapse, err := NewBinary("Is this valid?", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := BinaryInput{
 			Subject: "test input",
 			Context: "test context",
 		}
-		result, err := synapse.FireWithInput(ctx, input)
+		result, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput failed: %v", err)
 		}
@@ -198,15 +240,18 @@ func TestBinarySynapse_FireWithInput(t *testing.T) {
 
 	t.Run("with_options", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"decision": false, "confidence": 0.85, "reasoning": ["test"]}`)
-		synapse := NewBinary("test", provider,
+		synapse, err := NewBinary("test", provider,
 			WithCircuitBreaker(5, 30*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := BinaryInput{
 			Subject:     "test",
 			Temperature: 0.3,
 		}
-		result, err := synapse.FireWithInput(ctx, input)
+		result, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput with circuit breaker failed: %v", err)
 		}
@@ -219,13 +264,16 @@ func TestBinarySynapse_FireWithInput(t *testing.T) {
 func TestBinarySynapse_FireWithInput_FullResponse(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"decision": true, "confidence": 0.9, "reasoning": ["r1"]}`)
-		synapse := NewBinary("test", provider)
+		synapse, err := NewBinary("test", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := BinaryInput{
 			Subject: "input",
 		}
-		response, err := synapse.FireWithInput(ctx, input)
+		response, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput failed: %v", err)
 		}
@@ -236,14 +284,17 @@ func TestBinarySynapse_FireWithInput_FullResponse(t *testing.T) {
 
 	t.Run("with_retry", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"decision": false, "confidence": 0.8, "reasoning": ["test"]}`)
-		synapse := NewBinary("test", provider, WithRetry(3))
+		synapse, err := NewBinary("test", provider, WithRetry(3))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		ctx := context.Background()
 		input := BinaryInput{
 			Subject:     "test",
 			Temperature: 0.7,
 		}
-		response, err := synapse.FireWithInput(ctx, input)
+		response, err := synapse.FireWithInput(ctx, NewSession(), input)
 		if err != nil {
 			t.Fatalf("FireWithInput with retry failed: %v", err)
 		}
@@ -300,9 +351,13 @@ func TestBinarySynapse_mergeInputs(t *testing.T) {
 
 func TestBinarySynapse_buildPrompt(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
+		schema, err := generateJSONSchema[BinaryResponse]()
+		if err != nil {
+			t.Fatalf("failed to generate schema: %v", err)
+		}
 		synapse := &BinarySynapse{
 			question: "Is this valid?",
-			schema:   generateJSONSchema[BinaryResponse](),
+			schema:   schema,
 		}
 
 		input := BinaryInput{
@@ -322,9 +377,13 @@ func TestBinarySynapse_buildPrompt(t *testing.T) {
 	})
 
 	t.Run("with_context", func(t *testing.T) {
+		schema, err := generateJSONSchema[BinaryResponse]()
+		if err != nil {
+			t.Fatalf("failed to generate schema: %v", err)
+		}
 		synapse := &BinarySynapse{
 			question: "test",
-			schema:   generateJSONSchema[BinaryResponse](),
+			schema:   schema,
 		}
 
 		input := BinaryInput{
@@ -349,7 +408,10 @@ func TestBinarySynapse_buildPrompt(t *testing.T) {
 func TestBinary(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
 		provider := NewMockProvider()
-		synapse := Binary("Is this valid?", provider)
+		synapse, err := Binary("Is this valid?", provider)
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Binary wrapper returned nil")
@@ -358,16 +420,19 @@ func TestBinary(t *testing.T) {
 
 	t.Run("with_options", func(t *testing.T) {
 		provider := NewMockProviderWithResponse(`{"decision": true, "confidence": 0.9, "reasoning": ["test"]}`)
-		synapse := Binary("Is this valid?", provider,
+		synapse, err := Binary("Is this valid?", provider,
 			WithRetry(3),
 			WithTimeout(10*time.Second))
+		if err != nil {
+			t.Fatalf("failed to create synapse: %v", err)
+		}
 
 		if synapse == nil {
 			t.Fatal("Binary wrapper with options returned nil")
 		}
 
 		ctx := context.Background()
-		_, err := synapse.Fire(ctx, "test text")
+		_, err = synapse.Fire(ctx, NewSession(), "test text")
 		if err != nil {
 			t.Errorf("Binary synapse Fire failed: %v", err)
 		}
