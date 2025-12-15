@@ -544,6 +544,40 @@ func TestMyFunction(t *testing.T) {
 }
 ```
 
+## Documentation
+
+Full documentation is available in the [docs/](./docs/) directory.
+
+### Learn
+
+- [Quickstart](./docs/2.learn/1.quickstart.md) - Build your first synapse in 10 minutes
+- [Core Concepts](./docs/2.learn/2.concepts.md) - Understand synapses, sessions, and providers
+- [Architecture](./docs/2.learn/3.architecture.md) - How zyn works under the hood
+
+### Guides
+
+- [Installation](./docs/3.guides/1.installation.md) - Installing and configuring zyn
+- [Providers](./docs/3.guides/2.providers.md) - Configuring LLM providers
+- [Sessions](./docs/3.guides/3.sessions.md) - Managing conversation context
+- [Reliability](./docs/3.guides/4.reliability.md) - Retry, timeout, circuit breaker
+- [Observability](./docs/3.guides/5.observability.md) - Monitoring with hooks
+- [Testing](./docs/3.guides/6.testing.md) - Testing strategies
+- [Best Practices](./docs/3.guides/7.best-practices.md) - Production guidelines
+
+### Cookbook
+
+- [Classification Workflows](./docs/4.cookbook/1.classification-workflows.md) - Real-world classification patterns
+- [Extraction Pipelines](./docs/4.cookbook/2.extraction-pipelines.md) - Extract structured data
+- [Multi-Turn Conversations](./docs/4.cookbook/3.multi-turn-conversations.md) - Complex workflows
+- [Error Handling](./docs/4.cookbook/4.error-handling.md) - Robust error management
+
+### Reference
+
+- [Cheatsheet](./docs/5.reference/1.cheatsheet.md) - Quick reference for zyn API
+- [Synapses](./docs/5.reference/2.synapses/) - All synapse types
+- [Options](./docs/5.reference/3.options.md) - Configuration options
+- [Session](./docs/5.reference/4.session.md) - Session API
+
 ## Development
 
 ```bash

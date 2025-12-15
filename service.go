@@ -10,12 +10,6 @@ import (
 	"github.com/zoobzio/pipz"
 )
 
-// Validator defines the interface for response validation.
-// All response types must implement this to ensure LLM outputs are valid.
-type Validator interface {
-	Validate() error
-}
-
 // Service provides type-safe LLM interactions for a specific response type T.
 // It wraps a pipz pipeline and handles JSON parsing of responses.
 // T must implement Validator to ensure response validation.

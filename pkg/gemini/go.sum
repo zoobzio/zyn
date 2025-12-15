@@ -1,0 +1,5 @@
+github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
+github.com/zoobzio/capitan v0.0.8 h1:mSsJv+4+D3Fl4KgQ7xU3SdagHWXV1m/J+BLGcnFc33c=
+github.com/zoobzio/clockz v0.0.2 h1:72E53zhvh8EyxDPEy41CZOYSpSlmt8S+QNdFMVPA1xQ=
+github.com/zoobzio/pipz v0.0.18 h1:8W2X0HDbx25IXSbrEEpk4HjSrUSdIk3a3C7jMH9Uyrw=
+github.com/zoobzio/sentinel v0.0.6 h1:K6xqs/qelsjC5wGthPzw3cRWjGi0p1mwhh5oSJQT6Ko=

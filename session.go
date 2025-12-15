@@ -8,19 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Role constants for message types.
-const (
-	RoleUser      = "user"
-	RoleAssistant = "assistant"
-)
-
-// Message represents a single message in a conversation.
-// Messages are exchanged between the user and the assistant (LLM).
-type Message struct {
-	Role    string // RoleUser or RoleAssistant
-	Content string // The message content
-}
-
 // Session manages conversation state across multiple synapse calls.
 // It stores message history and enables multi-turn conversations with
 // automatic prompt caching support from providers.

@@ -116,7 +116,6 @@ jobs:
             - [ ] Test installation in clean environment
             - [ ] Validate documentation updates
             - [ ] Check provider compatibility
-            - [ ] Verify example code works
             - [ ] Update dependent projects if needed
             
             ### Release Links
