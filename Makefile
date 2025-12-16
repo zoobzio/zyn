@@ -41,7 +41,7 @@ test:
 # Run provider tests
 test-providers:
 	@echo "Running provider tests..."
-	@go test -v -race ./providers/...
+	@go test -v -race ./pkg/openai/... ./pkg/anthropic/... ./pkg/gemini/...
 
 # Run integration tests - component interaction verification
 test-integration:
