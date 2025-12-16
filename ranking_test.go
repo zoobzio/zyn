@@ -556,3 +556,64 @@ func TestRanking(t *testing.T) {
 		}
 	})
 }
+
+func TestRankingResponse_Validate(t *testing.T) {
+	t.Run("valid_response", func(t *testing.T) {
+		r := RankingResponse{
+			Ranked:     []string{"first", "second"},
+			Confidence: 0.9,
+			Reasoning:  []string{"valid reason"},
+		}
+		if err := r.Validate(); err != nil {
+			t.Errorf("expected valid response, got error: %v", err)
+		}
+	})
+
+	t.Run("empty_ranked", func(t *testing.T) {
+		r := RankingResponse{
+			Ranked:     []string{},
+			Confidence: 0.9,
+			Reasoning:  []string{"reason"},
+		}
+		err := r.Validate()
+		if err == nil {
+			t.Error("expected error for empty ranked list")
+		}
+	})
+
+	t.Run("confidence_too_low", func(t *testing.T) {
+		r := RankingResponse{
+			Ranked:     []string{"item"},
+			Confidence: -0.1,
+			Reasoning:  []string{"reason"},
+		}
+		err := r.Validate()
+		if err == nil {
+			t.Error("expected error for negative confidence")
+		}
+	})
+
+	t.Run("confidence_too_high", func(t *testing.T) {
+		r := RankingResponse{
+			Ranked:     []string{"item"},
+			Confidence: 1.1,
+			Reasoning:  []string{"reason"},
+		}
+		err := r.Validate()
+		if err == nil {
+			t.Error("expected error for confidence > 1")
+		}
+	})
+
+	t.Run("empty_reasoning", func(t *testing.T) {
+		r := RankingResponse{
+			Ranked:     []string{"item"},
+			Confidence: 0.9,
+			Reasoning:  []string{},
+		}
+		err := r.Validate()
+		if err == nil {
+			t.Error("expected error for empty reasoning")
+		}
+	})
+}

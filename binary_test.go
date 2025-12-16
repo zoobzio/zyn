@@ -438,3 +438,52 @@ func TestBinary(t *testing.T) {
 		}
 	})
 }
+
+func TestBinaryResponse_Validate(t *testing.T) {
+	t.Run("valid_response", func(t *testing.T) {
+		r := BinaryResponse{
+			Decision:   true,
+			Confidence: 0.9,
+			Reasoning:  []string{"valid reason"},
+		}
+		if err := r.Validate(); err != nil {
+			t.Errorf("expected valid response, got error: %v", err)
+		}
+	})
+
+	t.Run("confidence_too_low", func(t *testing.T) {
+		r := BinaryResponse{
+			Decision:   true,
+			Confidence: -0.1,
+			Reasoning:  []string{"reason"},
+		}
+		err := r.Validate()
+		if err == nil {
+			t.Error("expected error for negative confidence")
+		}
+	})
+
+	t.Run("confidence_too_high", func(t *testing.T) {
+		r := BinaryResponse{
+			Decision:   true,
+			Confidence: 1.5,
+			Reasoning:  []string{"reason"},
+		}
+		err := r.Validate()
+		if err == nil {
+			t.Error("expected error for confidence > 1")
+		}
+	})
+
+	t.Run("empty_reasoning", func(t *testing.T) {
+		r := BinaryResponse{
+			Decision:   true,
+			Confidence: 0.9,
+			Reasoning:  []string{},
+		}
+		err := r.Validate()
+		if err == nil {
+			t.Error("expected error for empty reasoning")
+		}
+	})
+}

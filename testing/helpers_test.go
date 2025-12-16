@@ -482,3 +482,100 @@ func TestUsageAccumulator_ConcurrentSafety(t *testing.T) {
 		t.Errorf("expected 1500 total tokens, got %d", acc.TotalTokens())
 	}
 }
+
+func TestResponseBuilder_BuildBytes(t *testing.T) {
+	t.Run("valid_response", func(t *testing.T) {
+		bytes := NewResponseBuilder().
+			WithDecision(true).
+			WithConfidence(0.9).
+			WithReasoning("test").
+			BuildBytes()
+
+		if len(bytes) == 0 {
+			t.Error("expected non-empty bytes")
+		}
+
+		var data map[string]any
+		if err := json.Unmarshal(bytes, &data); err != nil {
+			t.Fatalf("failed to unmarshal bytes: %v", err)
+		}
+
+		if data["decision"] != true {
+			t.Errorf("expected decision=true, got %v", data["decision"])
+		}
+	})
+
+	t.Run("empty_builder", func(t *testing.T) {
+		bytes := NewResponseBuilder().BuildBytes()
+
+		if len(bytes) == 0 {
+			t.Error("expected non-empty bytes for empty builder")
+		}
+
+		// Should be valid JSON (empty object)
+		var data map[string]any
+		if err := json.Unmarshal(bytes, &data); err != nil {
+			t.Fatalf("failed to unmarshal empty builder bytes: %v", err)
+		}
+	})
+}
+
+func TestSequencedProvider_Name(t *testing.T) {
+	provider := NewSequencedProvider(`{"ok": true}`)
+	name := provider.Name()
+
+	if name != SequencedProviderName {
+		t.Errorf("expected name='%s', got '%s'", SequencedProviderName, name)
+	}
+}
+
+func TestFailingProvider_Name(t *testing.T) {
+	provider := NewFailingProvider(1)
+	name := provider.Name()
+
+	if name != FailingProviderName {
+		t.Errorf("expected name='%s', got '%s'", FailingProviderName, name)
+	}
+}
+
+func TestCallRecorder_Name(t *testing.T) {
+	inner := NewSequencedProvider(`{"ok": true}`)
+	recorder := NewCallRecorder(inner)
+	name := recorder.Name()
+
+	// Should return the wrapped provider's name
+	if name != SequencedProviderName {
+		t.Errorf("expected name='%s', got '%s'", SequencedProviderName, name)
+	}
+}
+
+func TestLatencyProvider_Name(t *testing.T) {
+	inner := NewSequencedProvider(`{"ok": true}`)
+	provider := NewLatencyProvider(inner, 10*time.Millisecond)
+	name := provider.Name()
+
+	// Should return the wrapped provider's name
+	if name != SequencedProviderName {
+		t.Errorf("expected name='%s', got '%s'", SequencedProviderName, name)
+	}
+}
+
+func TestSequencedProvider_EmptyResponses(t *testing.T) {
+	// Test with no responses - should use default error response
+	provider := NewSequencedProvider()
+
+	ctx := context.Background()
+	resp, err := provider.Call(ctx, nil, 0)
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal([]byte(resp.Content), &data); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if _, ok := data["error"]; !ok {
+		t.Error("expected error field in default response")
+	}
+}

@@ -355,6 +355,13 @@ func TestParseMapValueType(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("fallback for invalid format", func(t *testing.T) {
+		result := parseMapValueType("not_a_map_type")
+		if result != "string" {
+			t.Errorf("expected fallback 'string', got %q", result)
+		}
+	})
 }
 
 // Helper for creating test sentinel field metadata.

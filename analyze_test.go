@@ -501,3 +501,48 @@ func TestAnalyzeSynapse_buildPrompt(t *testing.T) {
 		}
 	})
 }
+
+func TestAnalyzeResponse_Validate(t *testing.T) {
+	t.Run("valid_response", func(t *testing.T) {
+		r := AnalyzeResponse{
+			Analysis:   "analysis text",
+			Confidence: 0.9,
+		}
+		if err := r.Validate(); err != nil {
+			t.Errorf("expected valid response, got error: %v", err)
+		}
+	})
+
+	t.Run("empty_analysis", func(t *testing.T) {
+		r := AnalyzeResponse{
+			Analysis:   "",
+			Confidence: 0.9,
+		}
+		err := r.Validate()
+		if err == nil {
+			t.Error("expected error for empty analysis")
+		}
+	})
+
+	t.Run("confidence_too_low", func(t *testing.T) {
+		r := AnalyzeResponse{
+			Analysis:   "text",
+			Confidence: -0.5,
+		}
+		err := r.Validate()
+		if err == nil {
+			t.Error("expected error for negative confidence")
+		}
+	})
+
+	t.Run("confidence_too_high", func(t *testing.T) {
+		r := AnalyzeResponse{
+			Analysis:   "text",
+			Confidence: 1.5,
+		}
+		err := r.Validate()
+		if err == nil {
+			t.Error("expected error for confidence > 1")
+		}
+	})
+}

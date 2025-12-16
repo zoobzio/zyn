@@ -65,8 +65,8 @@ func TestRequestStartedHook(t *testing.T) {
 	if synapseTypeReceived != "binary" {
 		t.Errorf("Expected synapse type 'binary', got %q", synapseTypeReceived)
 	}
-	if providerReceived != "mock-fixed" {
-		t.Errorf("Expected provider 'mock-fixed', got %q", providerReceived)
+	if providerReceived != MockFixedProviderName {
+		t.Errorf("Expected provider '%s', got %q", MockFixedProviderName, providerReceived)
 	}
 	if taskReceived != "Determine if test question" {
 		t.Errorf("Expected task 'Determine if test question', got %q", taskReceived)

@@ -587,3 +587,201 @@ func TestSentiment(t *testing.T) {
 		}
 	})
 }
+
+func TestSentimentResponse_Validate(t *testing.T) {
+	validScores := SentimentScores{
+		Positive: 0.6,
+		Negative: 0.2,
+		Neutral:  0.2,
+	}
+
+	t.Run("valid_response", func(t *testing.T) {
+		r := SentimentResponse{
+			Overall:    "positive",
+			Confidence: 0.9,
+			Scores:     validScores,
+			Reasoning:  []string{"valid reason"},
+		}
+		if err := r.Validate(); err != nil {
+			t.Errorf("expected valid response, got error: %v", err)
+		}
+	})
+
+	t.Run("empty_overall", func(t *testing.T) {
+		r := SentimentResponse{
+			Overall:    "",
+			Confidence: 0.9,
+			Scores:     validScores,
+			Reasoning:  []string{"reason"},
+		}
+		err := r.Validate()
+		if err == nil {
+			t.Error("expected error for empty overall")
+		}
+	})
+
+	t.Run("confidence_too_low", func(t *testing.T) {
+		r := SentimentResponse{
+			Overall:    "positive",
+			Confidence: -0.5,
+			Scores:     validScores,
+			Reasoning:  []string{"reason"},
+		}
+		err := r.Validate()
+		if err == nil {
+			t.Error("expected error for negative confidence")
+		}
+	})
+
+	t.Run("confidence_too_high", func(t *testing.T) {
+		r := SentimentResponse{
+			Overall:    "positive",
+			Confidence: 1.5,
+			Scores:     validScores,
+			Reasoning:  []string{"reason"},
+		}
+		err := r.Validate()
+		if err == nil {
+			t.Error("expected error for confidence > 1")
+		}
+	})
+
+	t.Run("empty_reasoning", func(t *testing.T) {
+		r := SentimentResponse{
+			Overall:    "positive",
+			Confidence: 0.9,
+			Scores:     validScores,
+			Reasoning:  []string{},
+		}
+		err := r.Validate()
+		if err == nil {
+			t.Error("expected error for empty reasoning")
+		}
+	})
+
+	t.Run("invalid_scores", func(t *testing.T) {
+		r := SentimentResponse{
+			Overall:    "positive",
+			Confidence: 0.9,
+			Scores: SentimentScores{
+				Positive: 1.5,
+				Negative: 0.2,
+				Neutral:  0.2,
+			},
+			Reasoning: []string{"reason"},
+		}
+		err := r.Validate()
+		if err == nil {
+			t.Error("expected error for invalid scores")
+		}
+	})
+}
+
+func TestSentimentScores_Validate(t *testing.T) {
+	t.Run("valid_scores", func(t *testing.T) {
+		s := SentimentScores{
+			Positive: 0.5,
+			Negative: 0.3,
+			Neutral:  0.2,
+		}
+		if err := s.Validate(); err != nil {
+			t.Errorf("expected valid scores, got error: %v", err)
+		}
+	})
+
+	t.Run("positive_too_low", func(t *testing.T) {
+		s := SentimentScores{
+			Positive: -0.1,
+			Negative: 0.5,
+			Neutral:  0.5,
+		}
+		err := s.Validate()
+		if err == nil {
+			t.Error("expected error for negative positive score")
+		}
+	})
+
+	t.Run("positive_too_high", func(t *testing.T) {
+		s := SentimentScores{
+			Positive: 1.5,
+			Negative: 0.0,
+			Neutral:  0.0,
+		}
+		err := s.Validate()
+		if err == nil {
+			t.Error("expected error for positive > 1")
+		}
+	})
+
+	t.Run("negative_too_low", func(t *testing.T) {
+		s := SentimentScores{
+			Positive: 0.5,
+			Negative: -0.2,
+			Neutral:  0.5,
+		}
+		err := s.Validate()
+		if err == nil {
+			t.Error("expected error for negative negative score")
+		}
+	})
+
+	t.Run("negative_too_high", func(t *testing.T) {
+		s := SentimentScores{
+			Positive: 0.0,
+			Negative: 1.2,
+			Neutral:  0.0,
+		}
+		err := s.Validate()
+		if err == nil {
+			t.Error("expected error for negative > 1")
+		}
+	})
+
+	t.Run("neutral_too_low", func(t *testing.T) {
+		s := SentimentScores{
+			Positive: 0.5,
+			Negative: 0.5,
+			Neutral:  -0.1,
+		}
+		err := s.Validate()
+		if err == nil {
+			t.Error("expected error for negative neutral score")
+		}
+	})
+
+	t.Run("neutral_too_high", func(t *testing.T) {
+		s := SentimentScores{
+			Positive: 0.0,
+			Negative: 0.0,
+			Neutral:  1.1,
+		}
+		err := s.Validate()
+		if err == nil {
+			t.Error("expected error for neutral > 1")
+		}
+	})
+
+	t.Run("sum_too_low", func(t *testing.T) {
+		s := SentimentScores{
+			Positive: 0.2,
+			Negative: 0.2,
+			Neutral:  0.2,
+		}
+		err := s.Validate()
+		if err == nil {
+			t.Error("expected error for sum < 0.95")
+		}
+	})
+
+	t.Run("sum_too_high", func(t *testing.T) {
+		s := SentimentScores{
+			Positive: 0.5,
+			Negative: 0.5,
+			Neutral:  0.5,
+		}
+		err := s.Validate()
+		if err == nil {
+			t.Error("expected error for sum > 1.05")
+		}
+	})
+}

@@ -12,6 +12,12 @@ import (
 	"github.com/zoobzio/zyn"
 )
 
+// Provider name constants for test helpers.
+const (
+	SequencedProviderName = "sequenced-mock"
+	FailingProviderName   = "failing-mock"
+)
+
 // ResponseBuilder provides a fluent interface for constructing mock LLM responses.
 type ResponseBuilder struct {
 	data map[string]any
@@ -165,7 +171,7 @@ func (p *SequencedProvider) Call(_ context.Context, _ []zyn.Message, _ float32) 
 
 // Name returns the provider identifier.
 func (*SequencedProvider) Name() string {
-	return "sequenced-mock"
+	return SequencedProviderName
 }
 
 // CallCount returns the number of calls made.
@@ -226,7 +232,7 @@ func (p *FailingProvider) Call(_ context.Context, _ []zyn.Message, _ float32) (*
 
 // Name returns the provider identifier.
 func (*FailingProvider) Name() string {
-	return "failing-mock"
+	return FailingProviderName
 }
 
 // CallCount returns the number of calls made.

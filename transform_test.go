@@ -424,6 +424,111 @@ func TestTransformSynapse_mergeInputs(t *testing.T) {
 			t.Error("Should keep default context when not overridden")
 		}
 	})
+
+	t.Run("examples_map_initialization", func(t *testing.T) {
+		synapse := &TransformSynapse{
+			defaults: TransformInput{
+				Context: "default",
+				// No Examples set - should be nil
+			},
+		}
+
+		input := TransformInput{
+			Text: "test",
+			Examples: map[string]string{
+				"input1": "output1",
+				"input2": "output2",
+			},
+		}
+		merged := synapse.mergeInputs(input)
+
+		if merged.Examples == nil {
+			t.Error("Examples should be initialized")
+		}
+		if len(merged.Examples) != 2 {
+			t.Errorf("Expected 2 examples, got %d", len(merged.Examples))
+		}
+		if merged.Examples["input1"] != "output1" {
+			t.Errorf("Expected example value 'output1', got '%s'", merged.Examples["input1"])
+		}
+	})
+
+	t.Run("examples_merge_with_defaults", func(t *testing.T) {
+		synapse := &TransformSynapse{
+			defaults: TransformInput{
+				Examples: map[string]string{
+					"default1": "defaultout1",
+				},
+			},
+		}
+
+		input := TransformInput{
+			Text: "test",
+			Examples: map[string]string{
+				"input1": "output1",
+			},
+		}
+		merged := synapse.mergeInputs(input)
+
+		// Should have both default and input examples
+		if len(merged.Examples) != 2 {
+			t.Errorf("Expected 2 examples after merge, got %d", len(merged.Examples))
+		}
+	})
+
+	t.Run("max_length_override", func(t *testing.T) {
+		synapse := &TransformSynapse{
+			defaults: TransformInput{
+				MaxLength: 100,
+			},
+		}
+
+		input := TransformInput{
+			Text:      "test",
+			MaxLength: 200,
+		}
+		merged := synapse.mergeInputs(input)
+
+		if merged.MaxLength != 200 {
+			t.Errorf("Expected MaxLength 200, got %d", merged.MaxLength)
+		}
+	})
+
+	t.Run("max_length_zero_keeps_default", func(t *testing.T) {
+		synapse := &TransformSynapse{
+			defaults: TransformInput{
+				MaxLength: 100,
+			},
+		}
+
+		input := TransformInput{
+			Text:      "test",
+			MaxLength: 0, // Zero should not override
+		}
+		merged := synapse.mergeInputs(input)
+
+		if merged.MaxLength != 100 {
+			t.Errorf("Expected MaxLength 100 (default), got %d", merged.MaxLength)
+		}
+	})
+
+	t.Run("temperature_unset_keeps_default", func(t *testing.T) {
+		synapse := &TransformSynapse{
+			defaults: TransformInput{
+				Temperature: 0.5,
+			},
+		}
+
+		input := TransformInput{
+			Text:        "test",
+			Temperature: TemperatureUnset, // Should not override
+		}
+		merged := synapse.mergeInputs(input)
+
+		if merged.Temperature != 0.5 {
+			t.Errorf("Expected Temperature 0.5 (default), got %f", merged.Temperature)
+		}
+	})
 }
 
 func TestTransformSynapse_buildPrompt(t *testing.T) {
@@ -498,6 +603,51 @@ func TestTransformSynapse_buildPrompt(t *testing.T) {
 
 		if err := prompt.Validate(); err != nil {
 			t.Errorf("Built prompt failed validation: %v", err)
+		}
+	})
+}
+
+func TestTransformResponse_Validate(t *testing.T) {
+	t.Run("valid_response", func(t *testing.T) {
+		r := TransformResponse{
+			Output:     "transformed text",
+			Confidence: 0.9,
+		}
+		if err := r.Validate(); err != nil {
+			t.Errorf("expected valid response, got error: %v", err)
+		}
+	})
+
+	t.Run("empty_output", func(t *testing.T) {
+		r := TransformResponse{
+			Output:     "",
+			Confidence: 0.9,
+		}
+		err := r.Validate()
+		if err == nil {
+			t.Error("expected error for empty output")
+		}
+	})
+
+	t.Run("confidence_too_low", func(t *testing.T) {
+		r := TransformResponse{
+			Output:     "text",
+			Confidence: -0.5,
+		}
+		err := r.Validate()
+		if err == nil {
+			t.Error("expected error for negative confidence")
+		}
+	})
+
+	t.Run("confidence_too_high", func(t *testing.T) {
+		r := TransformResponse{
+			Output:     "text",
+			Confidence: 1.5,
+		}
+		err := r.Validate()
+		if err == nil {
+			t.Error("expected error for confidence > 1")
 		}
 	})
 }

@@ -7,6 +7,9 @@ import (
 	"strings"
 )
 
+// MockFixedProviderName is the name for the fixed mock provider.
+const MockFixedProviderName = "mock-fixed"
+
 // MockProvider simulates LLM behavior for testing.
 // It returns deterministic responses based on prompt patterns.
 type MockProvider struct {
@@ -324,7 +327,7 @@ func (m *mockProviderFixed) Call(_ context.Context, _ []Message, _ float32) (*Pr
 }
 
 func (*mockProviderFixed) Name() string {
-	return "mock-fixed"
+	return MockFixedProviderName
 }
 
 // mockProviderCallback uses a callback to generate responses.
