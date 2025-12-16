@@ -32,7 +32,10 @@ jobs:
           
     - name: Download dependencies
       run: go mod download
-      
+
+    - name: Initialize Go workspace
+      run: go work init . ./pkg/anthropic ./pkg/gemini ./pkg/openai
+
     - name: Run unit tests with race detection
       run: make test
 
@@ -64,6 +67,9 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
+    - name: Initialize Go workspace
+      run: go work init . ./pkg/anthropic ./pkg/gemini ./pkg/openai
+
     - name: Run provider tests
       run: make test-providers
 
@@ -90,7 +96,10 @@ jobs:
           
     - name: Download dependencies
       run: go mod download
-      
+
+    - name: Initialize Go workspace
+      run: go work init . ./pkg/anthropic ./pkg/gemini ./pkg/openai
+
     - name: Run benchmarks
       run: make bench-all | tee benchmark-results.txt
       
@@ -124,7 +133,10 @@ jobs:
           
     - name: Download dependencies
       run: go mod download
-      
+
+    - name: Initialize Go workspace
+      run: go work init . ./pkg/anthropic ./pkg/gemini ./pkg/openai
+
     - name: Install linting tools
       run: make install-tools
         
@@ -154,7 +166,10 @@ jobs:
         
     - name: Install gosec
       run: go install github.com/securego/gosec/v2/cmd/gosec@latest
-      
+
+    - name: Initialize Go workspace
+      run: go work init . ./pkg/anthropic ./pkg/gemini ./pkg/openai
+
     - name: Run gosec
       run: gosec -fmt sarif -out gosec-results.sarif ./...
       continue-on-error: true
