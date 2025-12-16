@@ -8,7 +8,6 @@ on:
 permissions:
   contents: write
   packages: write
-  issues: write
 
 jobs:
   validate:
@@ -94,38 +93,6 @@ jobs:
         go mod init example.com/test
         go get github.com/zoobzio/zyn@${{ github.ref_name }}
         go list -m github.com/zoobzio/zyn
-        
-    - name: Create release verification issue
-      uses: actions/github-script@v7
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const issue = await github.rest.issues.create({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            title: `Release ${{ github.ref_name }} - Post-Release Verification`,
-            body: `## Release ${{ github.ref_name }} Published
-            
-            ### Automated Checks ✅
-            - Module installation verified
-            - Tests passed
-            - Release artifacts created
-            
-            ### Manual Verification Checklist
-            - [ ] Verify release notes accuracy
-            - [ ] Test installation in clean environment
-            - [ ] Validate documentation updates
-            - [ ] Check provider compatibility
-            - [ ] Update dependent projects if needed
-            
-            ### Release Links
-            - [Release Page](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})
-            - [Module Page](https://pkg.go.dev/github.com/${{ github.repository }}@${{ github.ref_name }})
-            
-            cc @${{ github.actor }}`,
-            labels: ['release', 'verification']
-          });
-          console.log(`Created issue #${issue.data.number}`);
 
   notify:
     name: Release Notification
