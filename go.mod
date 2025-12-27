@@ -10,7 +10,4 @@ require (
 	github.com/zoobzio/zyn/pkg/openai v0.0.0-20251215232523-94b0f3dc6f06
 )
 
-require (
-	github.com/zoobzio/clockz v0.0.2 // indirect
-	golang.org/x/time v0.12.0 // indirect
-)
+require github.com/zoobzio/clockz v0.0.2 // indirect
