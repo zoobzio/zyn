@@ -10,6 +10,9 @@ import (
 	"github.com/zoobzio/pipz"
 )
 
+// Identity for the LLM terminal processor.
+var terminalID = pipz.NewIdentity("zyn:terminal", "LLM provider terminal")
+
 // Service provides type-safe LLM interactions for a specific response type T.
 // It wraps a pipz pipeline and handles JSON parsing of responses.
 // T must implement Validator to ensure response validation.
@@ -34,7 +37,7 @@ func NewService[T Validator](pipeline pipz.Chainable[*SynapseRequest], synapseTy
 // NewTerminal creates a terminal processor that calls the provider with session messages.
 // This is the common terminal processor used by all synapse types.
 func NewTerminal(provider Provider) pipz.Chainable[*SynapseRequest] {
-	return pipz.Apply("llm-call", func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+	return pipz.Apply(terminalID, func(ctx context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 		// Build messages array from session + new prompt
 		messages := make([]Message, len(req.Messages)+1)
 		copy(messages, req.Messages)

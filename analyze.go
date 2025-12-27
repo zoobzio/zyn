@@ -53,7 +53,7 @@ func Analyze[T any](what string, provider Provider, opts ...Option) (*AnalyzeSyn
 	}
 
 	// Apply options to build pipeline
-	var pipeline pipz.Chainable[*SynapseRequest] = NewTerminal(provider)
+	pipeline := NewTerminal(provider)
 	for _, opt := range opts {
 		pipeline = opt(pipeline)
 	}

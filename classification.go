@@ -56,7 +56,7 @@ func NewClassification(question string, categories []string, provider Provider, 
 	}
 
 	// Apply options to build pipeline
-	var pipeline pipz.Chainable[*SynapseRequest] = NewTerminal(provider)
+	pipeline := NewTerminal(provider)
 	for _, opt := range opts {
 		pipeline = opt(pipeline)
 	}

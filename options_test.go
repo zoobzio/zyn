@@ -9,9 +9,19 @@ import (
 	"github.com/zoobzio/pipz"
 )
 
+// Test identities for options tests.
+var (
+	testID        = pipz.NewIdentity("test:processor", "Test processor")
+	testSlowID    = pipz.NewIdentity("test:slow", "Slow test processor")
+	testFastID    = pipz.NewIdentity("test:fast", "Fast test processor")
+	testFailingID = pipz.NewIdentity("test:failing", "Failing test processor")
+	testHandlerID = pipz.NewIdentity("test:handler", "Test error handler")
+	testPrimaryID = pipz.NewIdentity("test:primary", "Primary test processor")
+)
+
 func TestWithRetry(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, nil
 		})
 
@@ -25,7 +35,7 @@ func TestWithRetry(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		attempts := 0
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			attempts++
 			if attempts < 2 {
 				return req, errors.New("temporary error")
@@ -52,7 +62,7 @@ func TestWithRetry(t *testing.T) {
 	})
 
 	t.Run("chaining", func(t *testing.T) {
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, nil
 		})
 
@@ -69,7 +79,7 @@ func TestWithRetry(t *testing.T) {
 
 func TestWithBackoff(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, nil
 		})
 
@@ -83,7 +93,7 @@ func TestWithBackoff(t *testing.T) {
 
 	t.Run("reliability", func(t *testing.T) {
 		attempts := 0
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			attempts++
 			if attempts < 2 {
 				return req, errors.New("temporary error")
@@ -106,7 +116,7 @@ func TestWithBackoff(t *testing.T) {
 	})
 
 	t.Run("chaining", func(t *testing.T) {
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, nil
 		})
 
@@ -124,7 +134,7 @@ func TestWithBackoff(t *testing.T) {
 
 func TestWithTimeout(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, nil
 		})
 
@@ -137,7 +147,7 @@ func TestWithTimeout(t *testing.T) {
 	})
 
 	t.Run("reliability", func(t *testing.T) {
-		pipeline := pipz.Apply("slow", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testSlowID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			time.Sleep(50 * time.Millisecond)
 			return req, nil
 		})
@@ -154,7 +164,7 @@ func TestWithTimeout(t *testing.T) {
 	})
 
 	t.Run("chaining", func(t *testing.T) {
-		pipeline := pipz.Apply("fast", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testFastID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, nil
 		})
 
@@ -172,7 +182,7 @@ func TestWithTimeout(t *testing.T) {
 
 func TestWithCircuitBreaker(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, nil
 		})
 
@@ -185,7 +195,7 @@ func TestWithCircuitBreaker(t *testing.T) {
 	})
 
 	t.Run("reliability", func(t *testing.T) {
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, errors.New("persistent failure")
 		})
 
@@ -211,7 +221,7 @@ func TestWithCircuitBreaker(t *testing.T) {
 	})
 
 	t.Run("chaining", func(t *testing.T) {
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, nil
 		})
 
@@ -229,7 +239,7 @@ func TestWithCircuitBreaker(t *testing.T) {
 
 func TestWithRateLimit(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, nil
 		})
 
@@ -242,7 +252,7 @@ func TestWithRateLimit(t *testing.T) {
 	})
 
 	t.Run("reliability", func(t *testing.T) {
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, nil
 		})
 
@@ -262,7 +272,7 @@ func TestWithRateLimit(t *testing.T) {
 	})
 
 	t.Run("chaining", func(t *testing.T) {
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, nil
 		})
 
@@ -280,11 +290,11 @@ func TestWithRateLimit(t *testing.T) {
 
 func TestWithErrorHandler(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, nil
 		})
 
-		handler := pipz.Apply("handler", func(_ context.Context, e *pipz.Error[*SynapseRequest]) (*pipz.Error[*SynapseRequest], error) {
+		handler := pipz.Apply(testHandlerID, func(_ context.Context, e *pipz.Error[*SynapseRequest]) (*pipz.Error[*SynapseRequest], error) {
 			return e, nil
 		})
 
@@ -297,12 +307,12 @@ func TestWithErrorHandler(t *testing.T) {
 	})
 
 	t.Run("reliability", func(t *testing.T) {
-		pipeline := pipz.Apply("failing", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testFailingID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, errors.New("test error")
 		})
 
 		handled := false
-		handler := pipz.Apply("handler", func(_ context.Context, e *pipz.Error[*SynapseRequest]) (*pipz.Error[*SynapseRequest], error) {
+		handler := pipz.Apply(testHandlerID, func(_ context.Context, e *pipz.Error[*SynapseRequest]) (*pipz.Error[*SynapseRequest], error) {
 			handled = true
 			return e, nil
 		})
@@ -320,11 +330,11 @@ func TestWithErrorHandler(t *testing.T) {
 	})
 
 	t.Run("chaining", func(t *testing.T) {
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, nil
 		})
 
-		handler := pipz.Apply("handler", func(_ context.Context, e *pipz.Error[*SynapseRequest]) (*pipz.Error[*SynapseRequest], error) {
+		handler := pipz.Apply(testHandlerID, func(_ context.Context, e *pipz.Error[*SynapseRequest]) (*pipz.Error[*SynapseRequest], error) {
 			return e, nil
 		})
 
@@ -342,7 +352,7 @@ func TestWithErrorHandler(t *testing.T) {
 
 func TestWithFallback(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
-		primaryPipeline := pipz.Apply("primary", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		primaryPipeline := pipz.Apply(testPrimaryID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, nil
 		})
 
@@ -360,7 +370,7 @@ func TestWithFallback(t *testing.T) {
 	})
 
 	t.Run("reliability", func(t *testing.T) {
-		primaryPipeline := pipz.Apply("primary", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		primaryPipeline := pipz.Apply(testPrimaryID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, errors.New("primary failed")
 		})
 
@@ -386,7 +396,7 @@ func TestWithFallback(t *testing.T) {
 	})
 
 	t.Run("chaining", func(t *testing.T) {
-		primaryPipeline := pipz.Apply("primary", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		primaryPipeline := pipz.Apply(testPrimaryID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			req.Response = "primary response"
 			return req, nil
 		})

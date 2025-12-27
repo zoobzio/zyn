@@ -8,10 +8,20 @@ import (
 	"github.com/zoobzio/pipz"
 )
 
+// Test identities for service tests.
+var (
+	testServiceID  = pipz.NewIdentity("test:service", "Test service processor")
+	testStage1ID   = pipz.NewIdentity("test:stage1", "Test stage 1")
+	testStage2ID   = pipz.NewIdentity("test:stage2", "Test stage 2")
+	testModifyID   = pipz.NewIdentity("test:modify", "Test modify processor")
+	testExecuteID  = pipz.NewIdentity("test:execute", "Test execute processor")
+	testCombinedID = pipz.NewIdentity("test:combined", "Test combined sequence")
+)
+
 func TestNewService(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testServiceID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, nil
 		})
 
@@ -25,7 +35,7 @@ func TestNewService(t *testing.T) {
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
 		attempts := 0
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testServiceID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			attempts++
 			if attempts < 2 {
 				return req, errors.New("temporary failure")
@@ -42,14 +52,14 @@ func TestNewService(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProvider()
-		pipeline1 := pipz.Apply("stage1", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline1 := pipz.Apply(testStage1ID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			req.Prompt = &Prompt{Task: "modified", Input: "test", Schema: "{}"}
 			return req, nil
 		})
-		pipeline2 := pipz.Apply("stage2", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline2 := pipz.Apply(testStage2ID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, nil
 		})
-		combined := pipz.NewSequence("combined", pipeline1, pipeline2)
+		combined := pipz.NewSequence(testCombinedID, pipeline1, pipeline2)
 
 		service := NewService[BinaryResponse](combined, "test", provider, DefaultTemperatureDeterministic)
 
@@ -62,7 +72,7 @@ func TestNewService(t *testing.T) {
 func TestService_GetPipeline(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testServiceID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			return req, nil
 		})
 		service := NewService[BinaryResponse](pipeline, "test", provider, DefaultTemperatureDeterministic)
@@ -76,7 +86,7 @@ func TestService_GetPipeline(t *testing.T) {
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
 		counter := 0
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testServiceID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			counter++
 			return req, nil
 		})
@@ -100,7 +110,7 @@ func TestService_GetPipeline(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProvider()
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testServiceID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			req.Response = `{"decision": true, "confidence": 0.9, "reasoning": ["test"]}`
 			return req, nil
 		})
@@ -119,7 +129,7 @@ func TestService_GetPipeline(t *testing.T) {
 func TestService_Execute(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		provider := NewMockProvider()
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testServiceID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			req.Response = `{"decision": true, "confidence": 0.9, "reasoning": ["test"]}`
 			return req, nil
 		})
@@ -139,7 +149,7 @@ func TestService_Execute(t *testing.T) {
 	t.Run("reliability", func(t *testing.T) {
 		provider := NewMockProvider()
 		attempts := 0
-		pipeline := pipz.Apply("test", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		pipeline := pipz.Apply(testServiceID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			attempts++
 			if attempts < 2 {
 				return req, errors.New("temporary failure")
@@ -159,15 +169,15 @@ func TestService_Execute(t *testing.T) {
 
 	t.Run("chaining", func(t *testing.T) {
 		provider := NewMockProvider()
-		modifyPipeline := pipz.Apply("modify", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		modifyPipeline := pipz.Apply(testModifyID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			req.Prompt.Task = "modified task"
 			return req, nil
 		})
-		executePipeline := pipz.Apply("execute", func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
+		executePipeline := pipz.Apply(testExecuteID, func(_ context.Context, req *SynapseRequest) (*SynapseRequest, error) {
 			req.Response = `{"decision": false, "confidence": 0.7, "reasoning": ["modified"]}`
 			return req, nil
 		})
-		combined := pipz.NewSequence("combined", modifyPipeline, executePipeline)
+		combined := pipz.NewSequence(testCombinedID, modifyPipeline, executePipeline)
 		service := NewService[BinaryResponse](combined, "test", provider, DefaultTemperatureDeterministic)
 
 		ctx := context.Background()

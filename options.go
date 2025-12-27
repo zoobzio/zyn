@@ -6,6 +6,17 @@ import (
 	"github.com/zoobzio/pipz"
 )
 
+// Identities for reliability options.
+var (
+	retryID          = pipz.NewIdentity("zyn:retry", "Retries failed LLM calls")
+	backoffID        = pipz.NewIdentity("zyn:backoff", "Retries with exponential backoff")
+	timeoutID        = pipz.NewIdentity("zyn:timeout", "Enforces operation timeout")
+	circuitBreakerID = pipz.NewIdentity("zyn:circuit-breaker", "Circuit breaker protection")
+	rateLimitID      = pipz.NewIdentity("zyn:rate-limit", "Rate limiting")
+	errorHandlerID   = pipz.NewIdentity("zyn:error-handler", "Error handling")
+	fallbackID       = pipz.NewIdentity("zyn:fallback", "Fallback alternatives")
+)
+
 // Option modifies a pipeline for reliability features.
 type Option func(pipz.Chainable[*SynapseRequest]) pipz.Chainable[*SynapseRequest]
 
@@ -13,7 +24,7 @@ type Option func(pipz.Chainable[*SynapseRequest]) pipz.Chainable[*SynapseRequest
 // Failed requests are retried up to maxAttempts times.
 func WithRetry(maxAttempts int) Option {
 	return func(pipeline pipz.Chainable[*SynapseRequest]) pipz.Chainable[*SynapseRequest] {
-		return pipz.NewRetry("retry", pipeline, maxAttempts)
+		return pipz.NewRetry(retryID, pipeline, maxAttempts)
 	}
 }
 
@@ -22,7 +33,7 @@ func WithRetry(maxAttempts int) Option {
 // The delay starts at baseDelay and doubles after each failure.
 func WithBackoff(maxAttempts int, baseDelay time.Duration) Option {
 	return func(pipeline pipz.Chainable[*SynapseRequest]) pipz.Chainable[*SynapseRequest] {
-		return pipz.NewBackoff("backoff", pipeline, maxAttempts, baseDelay)
+		return pipz.NewBackoff(backoffID, pipeline, maxAttempts, baseDelay)
 	}
 }
 
@@ -30,7 +41,7 @@ func WithBackoff(maxAttempts int, baseDelay time.Duration) Option {
 // Operations exceeding this duration will be canceled.
 func WithTimeout(duration time.Duration) Option {
 	return func(pipeline pipz.Chainable[*SynapseRequest]) pipz.Chainable[*SynapseRequest] {
-		return pipz.NewTimeout("timeout", pipeline, duration)
+		return pipz.NewTimeout(timeoutID, pipeline, duration)
 	}
 }
 
@@ -38,7 +49,7 @@ func WithTimeout(duration time.Duration) Option {
 // After 'failures' consecutive failures, the circuit opens for 'recovery' duration.
 func WithCircuitBreaker(failures int, recovery time.Duration) Option {
 	return func(pipeline pipz.Chainable[*SynapseRequest]) pipz.Chainable[*SynapseRequest] {
-		return pipz.NewCircuitBreaker("circuit-breaker", pipeline, failures, recovery)
+		return pipz.NewCircuitBreaker(circuitBreakerID, pipeline, failures, recovery)
 	}
 }
 
@@ -46,8 +57,7 @@ func WithCircuitBreaker(failures int, recovery time.Duration) Option {
 // rps = requests per second, burst = burst capacity.
 func WithRateLimit(rps float64, burst int) Option {
 	return func(pipeline pipz.Chainable[*SynapseRequest]) pipz.Chainable[*SynapseRequest] {
-		rateLimiter := pipz.NewRateLimiter[*SynapseRequest]("rate-limit", rps, burst)
-		return pipz.NewSequence("rate-limited", rateLimiter, pipeline)
+		return pipz.NewRateLimiter(rateLimitID, rps, burst, pipeline)
 	}
 }
 
@@ -55,7 +65,7 @@ func WithRateLimit(rps float64, burst int) Option {
 // The error handler receives error context and can process/log/alert as needed.
 func WithErrorHandler(handler pipz.Chainable[*pipz.Error[*SynapseRequest]]) Option {
 	return func(pipeline pipz.Chainable[*SynapseRequest]) pipz.Chainable[*SynapseRequest] {
-		return pipz.NewHandle("error-handler", pipeline, handler)
+		return pipz.NewHandle(errorHandlerID, pipeline, handler)
 	}
 }
 
@@ -68,6 +78,6 @@ type ServiceProvider interface {
 // If the primary fails, the fallback will be tried.
 func WithFallback(fallback ServiceProvider) Option {
 	return func(pipeline pipz.Chainable[*SynapseRequest]) pipz.Chainable[*SynapseRequest] {
-		return pipz.NewFallback("with-fallback", pipeline, fallback.GetPipeline())
+		return pipz.NewFallback(fallbackID, pipeline, fallback.GetPipeline())
 	}
 }

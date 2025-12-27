@@ -96,7 +96,7 @@ func NewSentiment(analysisType string, provider Provider, opts ...Option) (*Sent
 	}
 
 	// Apply options to build pipeline
-	var pipeline pipz.Chainable[*SynapseRequest] = NewTerminal(provider)
+	pipeline := NewTerminal(provider)
 	for _, opt := range opts {
 		pipeline = opt(pipeline)
 	}

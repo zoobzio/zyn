@@ -3,108 +3,174 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*.*.*'  # Trigger on version tags like v1.0.0, v2.1.3, etc.
 
 permissions:
-  contents: write
-  packages: write
+  contents: write  # Required for creating releases
+  packages: write  # Required if publishing to GitHub Packages
+  id-token: write  # Required for signing
 
 jobs:
+  # Validate the module before release
   validate:
-    name: Validate Release
+    name: Validate Module
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        
-    - name: Validate tag format
-      run: |
-        if ! [[ "${{ github.ref_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+)?$ ]]; then
-          echo "Invalid tag format. Expected: vX.Y.Z or vX.Y.Z-suffix"
-          exit 1
-        fi
-        
-    - name: Check for breaking changes
-      run: |
-        echo "Checking commit messages for breaking changes..."
-        git log --pretty=format:"%s" $(git describe --tags --abbrev=0 HEAD^)..HEAD | grep -E "^(BREAKING CHANGE|.*!:)" || true
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required for changelog generation
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Initialize Go workspace
+        run: go work init . ./pkg/anthropic ./pkg/gemini ./pkg/openai
+
+      - name: Validate go.mod
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum || (echo "go.mod/go.sum need updating" && exit 1)
+
+      - name: Run tests
+        run: |
+          go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+      - name: Run linting
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.7.2
+          args: --config=.golangci.yml --timeout=5m
+
+      - name: Test examples
+        run: |
+          for dir in examples/*/; do
+            if [ -f "$dir/go.mod" ]; then
+              echo "Testing $dir"
+              (cd "$dir" && go test -v -race ./...)
+            fi
+          done
+
+  # Create the release using GoReleaser
   release:
     name: Create Release
-    runs-on: ubuntu-latest
     needs: validate
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: "1.23"
-        
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-1.23-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-1.23-
-          
-    - name: Download dependencies
-      run: go mod download
-      
-    - name: Run tests
-      run: go test -v -race -timeout=10m ./...
-      
-    - name: Run goreleaser
-      uses: goreleaser/goreleaser-action@v6
-      with:
-        version: latest
-        args: release --clean
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: Upload release artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: release-artifacts
-        path: dist/
-        retention-days: 30
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required for changelog generation
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Initialize Go workspace
+        run: go work init . ./pkg/anthropic ./pkg/gemini ./pkg/openai
+
+      - name: Install GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: latest
+          install-only: true
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Release Assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist/
+          retention-days: 7
+
+  # Verify the release was created successfully
   verify:
     name: Verify Release
-    runs-on: ubuntu-latest
     needs: release
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: "1.23"
-        
-    - name: Verify module installation
-      run: |
-        # Create temporary directory and module
-        mkdir -p ${{ runner.temp }}/test-module
-        cd ${{ runner.temp }}/test-module
-        go mod init example.com/test
-        go get github.com/zoobzio/zyn@${{ github.ref_name }}
-        go list -m github.com/zoobzio/zyn
-
-  notify:
-    name: Release Notification
     runs-on: ubuntu-latest
-    needs: [release, verify]
-    if: always()
     steps:
-    - name: Send notification
-      run: |
-        if [[ "${{ needs.release.result }}" == "success" ]]; then
-          echo "✅ Release ${{ github.ref_name }} completed successfully"
-        else
-          echo "❌ Release ${{ github.ref_name }} failed"
-          exit 1
-        fi
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Get release version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Verify module can be fetched
+        run: |
+          # Wait a moment for the release to propagate
+          sleep 10
+
+          # Create a test module
+          mkdir -p /tmp/test-zyn
+          cd /tmp/test-zyn
+          go mod init test
+
+          # Try to get the new version
+          go get github.com/zoobzio/zyn@${{ steps.version.outputs.VERSION }}
+
+          # Verify it was fetched
+          go list -m github.com/zoobzio/zyn
+
+      - name: Create release summary
+        run: |
+          echo "### Release ${{ steps.version.outputs.VERSION }} Published Successfully! 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Installation" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "go get github.com/zoobzio/zyn@${{ steps.version.outputs.VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Release Notes" >> $GITHUB_STEP_SUMMARY
+          echo "View the full release notes at: https://github.com/zoobzio/zyn/releases/tag/${{ steps.version.outputs.VERSION }}" >> $GITHUB_STEP_SUMMARY
+
+  # Optional: Notify about the release
+  notify:
+    name: Notify Release
+    needs: verify
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Get release version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create issue for release notes review
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.version.outputs.VERSION }}';
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Release ${version} - Post-Release Checklist`,
+              body: `## Release ${version} has been published! 🎉
+
+              ### Post-Release Checklist
+              - [ ] Verify the release appears correctly on GitHub
+              - [ ] Test installation with \`go get github.com/zoobzio/zyn@${version}\`
+              - [ ] Update any example dependencies if needed
+              - [ ] Consider announcing the release if it contains significant changes
+              - [ ] Close any issues/PRs that were addressed in this release
+
+              ### Release URL
+              https://github.com/zoobzio/zyn/releases/tag/${version}
+
+              ---
+              This issue was automatically created by the release workflow.`,
+              labels: ['release', 'documentation']
+            });
+            console.log(`Created issue #${issue.data.number}`);
+        continue-on-error: true  # Don't fail if issue creation fails

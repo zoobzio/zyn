@@ -92,7 +92,7 @@ func generateJSONSchema[T any]() (string, error) {
 
 // buildSchemaFromMetadata constructs a JSONSchema from sentinel metadata.
 // isRoot indicates if this is the top-level schema (affects additionalProperties handling).
-func buildSchemaFromMetadata(metadata sentinel.ModelMetadata, isRoot bool) *JSONSchema {
+func buildSchemaFromMetadata(metadata sentinel.Metadata, isRoot bool) *JSONSchema {
 	schema := &JSONSchema{
 		Type:                    jsonTypeObject,
 		Properties:              make(map[string]*JSONSchema),
