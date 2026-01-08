@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/zoobzio/zyn"
-	"github.com/zoobzio/zyn/pkg/openai"
+	"github.com/zoobzio/zyn/openai"
 )
 
 // skipWithoutAPIKey skips the test if OPENAI_API_KEY is not set.

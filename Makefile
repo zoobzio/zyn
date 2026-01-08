@@ -1,5 +1,7 @@
 .PHONY: test bench bench-all lint coverage clean all help test-providers test-integration test-benchmarks test-reliability test-all ci check lint-fix install-tools install-hooks examples example-list
 
+.DEFAULT_GOAL := help
+
 # Default target
 all: test lint
 
@@ -41,7 +43,7 @@ test:
 # Run provider tests
 test-providers:
 	@echo "Running provider tests..."
-	@go test -v -race ./pkg/openai/... ./pkg/anthropic/... ./pkg/gemini/...
+	@go test -v -race ./openai/... ./anthropic/... ./gemini/...
 
 # Run integration tests - component interaction verification
 test-integration:
