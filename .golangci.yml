@@ -57,7 +57,7 @@ linters:
           - errcheck
 
       # Provider test files have necessary mocking patterns
-      - path: pkg/.*_test\.go
+      - path: (openai|anthropic|gemini)/.*_test\.go
         linters:
           - dupl
           - goconst

@@ -84,7 +84,7 @@ jobs:
       run: go work init . ./anthropic ./gemini ./openai
 
     - name: Run provider tests
-      run: go test -v -race ./pkg/${{ matrix.provider }}/...
+      run: go test -v -race ./${{ matrix.provider }}/...
 
   benchmark:
     name: Benchmark
