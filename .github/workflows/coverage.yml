@@ -34,23 +34,17 @@ jobs:
       
     - name: Generate coverage report
       run: make coverage
-        
-    - name: Convert coverage to XML
-      run: |
-        go install github.com/axw/gocov/gocov@latest
-        go install github.com/AlekSi/gocov-xml@latest
-        gocov convert coverage.out | gocov-xml > coverage.xml
-        
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        file: ./coverage.xml
+        files: ./coverage.out
         flags: unittests
         name: codecov-umbrella
         fail_ci_if_error: false
         verbose: true
-        
+
     - name: Upload coverage artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -58,16 +52,4 @@ jobs:
         path: |
           coverage.out
           coverage.html
-          coverage.xml
         retention-days: 30
-        
-    - name: Comment PR with coverage
-      if: github.event_name == 'pull_request'
-      uses: 5monkeys/cobertura-action@master
-      with:
-        path: coverage.xml
-        minimum_coverage: 60
-        show_missing: true
-        show_line: true
-        show_branch: true
-        skip_covered: false
