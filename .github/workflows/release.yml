@@ -52,10 +52,28 @@ jobs:
             fi
           done
 
+  # Tag submodules for independent versioning
+  tag-submodules:
+    name: Tag Submodules
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tag submodules
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          for mod in anthropic gemini openai testing; do
+            git tag "${mod}/${VERSION}"
+          done
+          git push origin --tags
+
   # Create the release using GoReleaser
   release:
     name: Create Release
-    needs: validate
+    needs: tag-submodules
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,12 +88,6 @@ jobs:
       - name: Initialize Go workspace
         run: go work init . ./anthropic ./gemini ./openai ./testing
 
-      - name: Install GoReleaser
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          version: latest
-          install-only: true
-
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
@@ -83,6 +95,7 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
 
       - name: Upload Release Assets
         uses: actions/upload-artifact@v4
